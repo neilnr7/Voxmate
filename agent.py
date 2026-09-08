@@ -4,7 +4,23 @@ from llm.llama_client import LlamaClient
 from tools.registry import ToolRegistry
 from tools.apps import open_app, OPEN_APP_TOOL
 from tools.browser import open_browser
+from tools.system import (
+    get_time,
+    get_date,
+    get_battery,
+    GET_TIME_TOOL,
+    GET_DATE_TOOL,
+    GET_BATTERY_TOOL
+)
 
+from tools.clipboard import (
+    read_clipboard,
+    write_clipboard,
+    clear_clipboard,
+    READ_CLIPBOARD_TOOL,
+    WRITE_CLIPBOARD_TOOL,
+    CLEAR_CLIPBOARD_TOOL
+)
 
 OPEN_BROWSER_TOOL = {
     "type": "function",
@@ -54,8 +70,23 @@ class Agent:
 
         self.tools = [
             OPEN_APP_TOOL,
-            OPEN_BROWSER_TOOL
+            OPEN_BROWSER_TOOL,
+            GET_TIME_TOOL,
+            GET_DATE_TOOL,
+            GET_BATTERY_TOOL,
+            READ_CLIPBOARD_TOOL,
+            WRITE_CLIPBOARD_TOOL,
+            CLEAR_CLIPBOARD_TOOL
         ]
+        #system info tools
+        self.registry.register("get_time", get_time)
+        self.registry.register("get_date", get_date)
+        self.registry.register("get_battery", get_battery)
+        
+        #clipboard tools
+        self.registry.register("read_clipboard", read_clipboard)
+        self.registry.register("write_clipboard", write_clipboard)
+        self.registry.register("clear_clipboard", clear_clipboard)
 
     def run(self, user_input):
         messages = [
