@@ -1,5 +1,6 @@
 import os
 import subprocess
+from urllib.parse import urlparse
 
 
 BROWSER_PATHS = {
@@ -54,3 +55,22 @@ def open_browser(browser=None):
     )
 
     return f"{browser} opened"
+
+def open_url(url):
+    parsed = urlparse(url)
+
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return f"Invalid URL: {url}"
+
+    os.startfile(url)
+
+    return f"Opened {url}"
+
+def search_web(query):
+    if not query or not query.strip():
+        return "Search query cannot be empty."
+
+    url = "https://www.google.com/search?q=" + query.replace(" ", "+")
+    os.startfile(url)
+
+    return f"Searching for: {query}"

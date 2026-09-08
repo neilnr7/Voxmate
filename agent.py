@@ -3,7 +3,7 @@ import json
 from llm.llama_client import LlamaClient
 from tools.registry import ToolRegistry
 from tools.apps import open_app, OPEN_APP_TOOL
-from tools.browser import open_browser
+from tools.browser import open_browser, open_url, search_web
 from tools.system import (
     get_time,
     get_date,
@@ -50,7 +50,50 @@ OPEN_BROWSER_TOOL = {
         }
     }
 }
+OPEN_URL_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "open_url",
+        "description": (
+            "Open a website or URL in the default web browser. "
+            "Use this tool when the user asks to open a website, "
+            "such as YouTube, GitHub, Google, or another website. "
+            "The URL must be a valid HTTP or HTTPS URL."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "The complete HTTP or HTTPS URL to open."
+                }
+            },
+            "required": ["url"]
+        }
+    }
+}
 
+SEARCH_WEB_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "search_web",
+        "description": (
+            "Search the web for information using a search engine. "
+            "Use this when the user asks to search for something, "
+            "look something up, or find information online."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search query."
+                }
+            },
+            "required": ["query"]
+        }
+    }
+}
 
 class Agent:
     def __init__(self):
@@ -67,10 +110,20 @@ class Agent:
             "open_browser",
             open_browser
         )
+        self.registry.register(
+            "open_url",
+            open_url
+        )
+        self.registry.register(
+            "search_web",
+            search_web
+        )
 
         self.tools = [
             OPEN_APP_TOOL,
             OPEN_BROWSER_TOOL,
+            OPEN_URL_TOOL,
+            SEARCH_WEB_TOOL,
             GET_TIME_TOOL,
             GET_DATE_TOOL,
             GET_BATTERY_TOOL,
