@@ -1,5 +1,4 @@
 import json
-
 from llm.llama_client import LlamaClient
 from tools.registry import ToolRegistry
 from tools.apps import open_app, OPEN_APP_TOOL
@@ -20,6 +19,22 @@ from tools.clipboard import (
     READ_CLIPBOARD_TOOL,
     WRITE_CLIPBOARD_TOOL,
     CLEAR_CLIPBOARD_TOOL
+)
+from tools.input import (
+    type_text,
+    press_key,
+    hotkey,
+    click,
+    scroll,
+    TYPE_TEXT_TOOL,
+    PRESS_KEY_TOOL,
+    HOTKEY_TOOL,
+    CLICK_TOOL,
+    SCROLL_TOOL
+)
+from tools.screenshot import (
+    take_screenshot,
+    TAKE_SCREENSHOT_TOOL
 )
 
 OPEN_BROWSER_TOOL = {
@@ -129,7 +144,13 @@ class Agent:
             GET_BATTERY_TOOL,
             READ_CLIPBOARD_TOOL,
             WRITE_CLIPBOARD_TOOL,
-            CLEAR_CLIPBOARD_TOOL
+            CLEAR_CLIPBOARD_TOOL,
+            TYPE_TEXT_TOOL,
+            PRESS_KEY_TOOL,
+            HOTKEY_TOOL,
+            CLICK_TOOL,
+            SCROLL_TOOL,
+            TAKE_SCREENSHOT_TOOL
         ]
         #system info tools
         self.registry.register("get_time", get_time)
@@ -140,7 +161,18 @@ class Agent:
         self.registry.register("read_clipboard", read_clipboard)
         self.registry.register("write_clipboard", write_clipboard)
         self.registry.register("clear_clipboard", clear_clipboard)
-
+        
+        #input tools
+        self.registry.register("type_text", type_text)
+        self.registry.register("press_key", press_key)
+        self.registry.register("hotkey", hotkey)
+        self.registry.register("click", click)
+        self.registry.register("scroll", scroll)
+        
+        #screenshot tool
+        
+        self.registry.register("take_screenshot",take_screenshot)
+        
     def run(self, user_input):
         messages = [
             {
