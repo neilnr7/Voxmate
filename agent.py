@@ -1,5 +1,11 @@
 import json
 
+
+
+from tools.files import list_files, find_file
+
+
+
 from llm.llama_client import LlamaClient
 from tools.registry import ToolRegistry
 from tools.apps import open_app, OPEN_APP_TOOL
@@ -95,6 +101,47 @@ SEARCH_WEB_TOOL = {
     }
 }
 
+
+LIST_FILES_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "list_files",
+        "description": "List files and folders inside a specified directory.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "The directory path to list."
+                }
+            },
+            "required": ["path"]
+        }
+    }
+}
+
+FIND_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "find_file",
+        "description": "Search for files whose names contain the given query inside a directory and its subdirectories.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The filename or part of the filename to search for."
+                },
+                "path": {
+                    "type": "string",
+                    "description": "The directory where the search should start."
+                }
+            },
+            "required": ["query", "path"]
+        }
+    }
+}
+
 class Agent:
     def __init__(self):
         self.llm = LlamaClient()
@@ -129,7 +176,9 @@ class Agent:
             GET_BATTERY_TOOL,
             READ_CLIPBOARD_TOOL,
             WRITE_CLIPBOARD_TOOL,
-            CLEAR_CLIPBOARD_TOOL
+            CLEAR_CLIPBOARD_TOOL,
+            LIST_FILES_TOOL,
+            FIND_FILE_TOOL
         ]
         #system info tools
         self.registry.register("get_time", get_time)
@@ -140,6 +189,10 @@ class Agent:
         self.registry.register("read_clipboard", read_clipboard)
         self.registry.register("write_clipboard", write_clipboard)
         self.registry.register("clear_clipboard", clear_clipboard)
+
+        # file tools
+        self.registry.register("list_files", list_files)
+        self.registry.register("find_file", find_file)
 
     def run(self, user_input):
         messages = [
