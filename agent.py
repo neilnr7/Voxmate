@@ -1,8 +1,21 @@
 import json
+
 from llm.llama_client import LlamaClient
 from tools.registry import ToolRegistry
-from tools.apps import open_app, OPEN_APP_TOOL
-from tools.browser import open_browser, open_url, search_web
+
+from tools.apps import (
+    open_app,
+    close_app,
+    OPEN_APP_TOOL,
+    CLOSE_APP_TOOL
+)
+
+from tools.browser import (
+    open_browser,
+    open_url,
+    search_web
+)
+
 from tools.system import (
     get_time,
     get_date,
@@ -20,6 +33,7 @@ from tools.clipboard import (
     WRITE_CLIPBOARD_TOOL,
     CLEAR_CLIPBOARD_TOOL
 )
+
 from tools.input import (
     type_text,
     press_key,
@@ -32,10 +46,12 @@ from tools.input import (
     CLICK_TOOL,
     SCROLL_TOOL
 )
+
 from tools.screenshot import (
     take_screenshot,
     TAKE_SCREENSHOT_TOOL
 )
+
 
 OPEN_BROWSER_TOOL = {
     "type": "function",
@@ -65,6 +81,8 @@ OPEN_BROWSER_TOOL = {
         }
     }
 }
+
+
 OPEN_URL_TOOL = {
     "type": "function",
     "function": {
@@ -88,6 +106,7 @@ OPEN_URL_TOOL = {
     }
 }
 
+
 SEARCH_WEB_TOOL = {
     "type": "function",
     "function": {
@@ -110,69 +129,129 @@ SEARCH_WEB_TOOL = {
     }
 }
 
+
 class Agent:
     def __init__(self):
         self.llm = LlamaClient()
 
         self.registry = ToolRegistry()
 
+        # Application tools
         self.registry.register(
             "open_app",
             open_app
         )
 
         self.registry.register(
+            "close_app",
+            close_app
+        )
+
+        # Browser tools
+        self.registry.register(
             "open_browser",
             open_browser
         )
+
         self.registry.register(
             "open_url",
             open_url
         )
+
         self.registry.register(
             "search_web",
             search_web
         )
 
+        # System information tools
+        self.registry.register(
+            "get_time",
+            get_time
+        )
+
+        self.registry.register(
+            "get_date",
+            get_date
+        )
+
+        self.registry.register(
+            "get_battery",
+            get_battery
+        )
+
+        # Clipboard tools
+        self.registry.register(
+            "read_clipboard",
+            read_clipboard
+        )
+
+        self.registry.register(
+            "write_clipboard",
+            write_clipboard
+        )
+
+        self.registry.register(
+            "clear_clipboard",
+            clear_clipboard
+        )
+
+        # Input tools
+        self.registry.register(
+            "type_text",
+            type_text
+        )
+
+        self.registry.register(
+            "press_key",
+            press_key
+        )
+
+        self.registry.register(
+            "hotkey",
+            hotkey
+        )
+
+        self.registry.register(
+            "click",
+            click
+        )
+
+        self.registry.register(
+            "scroll",
+            scroll
+        )
+
+        # Screenshot tool
+        self.registry.register(
+            "take_screenshot",
+            take_screenshot
+        )
+
         self.tools = [
             OPEN_APP_TOOL,
+            CLOSE_APP_TOOL,
+
             OPEN_BROWSER_TOOL,
             OPEN_URL_TOOL,
             SEARCH_WEB_TOOL,
+
             GET_TIME_TOOL,
             GET_DATE_TOOL,
             GET_BATTERY_TOOL,
+
             READ_CLIPBOARD_TOOL,
             WRITE_CLIPBOARD_TOOL,
             CLEAR_CLIPBOARD_TOOL,
+
             TYPE_TEXT_TOOL,
             PRESS_KEY_TOOL,
             HOTKEY_TOOL,
             CLICK_TOOL,
             SCROLL_TOOL,
+
             TAKE_SCREENSHOT_TOOL
         ]
-        #system info tools
-        self.registry.register("get_time", get_time)
-        self.registry.register("get_date", get_date)
-        self.registry.register("get_battery", get_battery)
-        
-        #clipboard tools
-        self.registry.register("read_clipboard", read_clipboard)
-        self.registry.register("write_clipboard", write_clipboard)
-        self.registry.register("clear_clipboard", clear_clipboard)
-        
-        #input tools
-        self.registry.register("type_text", type_text)
-        self.registry.register("press_key", press_key)
-        self.registry.register("hotkey", hotkey)
-        self.registry.register("click", click)
-        self.registry.register("scroll", scroll)
-        
-        #screenshot tool
-        
-        self.registry.register("take_screenshot",take_screenshot)
-        
+
     def run(self, user_input):
         messages = [
             {
