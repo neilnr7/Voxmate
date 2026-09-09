@@ -2,3 +2,4 @@ requests
 psutil
 pyperclip
 pyautogui
+pywin32
