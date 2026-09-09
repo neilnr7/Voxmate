@@ -75,3 +75,48 @@ def create_file(path):
         }
 
 
+def write_file(path, content):
+    try:
+        with open(path, "w", encoding="utf-8") as file:
+            file.write(content)
+
+        return {
+            "success": True,
+            "path": path,
+            "message": "File written successfully."
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+def rename_file(path, new_name):
+    try:
+        directory = os.path.dirname(path)
+        new_path = os.path.join(directory, new_name)
+
+        os.rename(path, new_path)
+
+        return {
+            "success": True,
+            "old_path": path,
+            "new_path": new_path,
+            "message": "File renamed successfully."
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+if __name__ == "__main__":
+    result = rename_file(
+        r"C:\Users\ASUS\Desktop\SDP\Voxmate\test_write.txt",
+        "renamed_test.txt"
+    )
+    print(result)

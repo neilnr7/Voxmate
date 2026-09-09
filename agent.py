@@ -1,7 +1,7 @@
 import json
 
 
-from tools.files import list_files, find_file, read_file, create_file
+from tools.files import list_files, find_file, read_file, create_file, write_file, rename_file
 from pathlib import Path
 
 
@@ -216,6 +216,54 @@ CREATE_FILE_TOOL = {
     }
 }
 
+WRITE_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "write_file",
+        "description": "Write content to a file.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "The path of the file."
+                },
+                "content": {
+                    "type": "string",
+                    "description": "The content to write into the file."
+                }
+            },
+            "required": ["path", "content"]
+        }
+    }
+}
+
+RENAME_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "rename_file",
+        "description": "Rename an existing file to a new name in the same directory.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "The complete path of the existing file."
+                },
+                "new_name": {
+                    "type": "string",
+                    "description": "The new filename."
+                }
+            },
+            "required": ["path", "new_name"]
+        }
+    }
+}
+
+
+
+
+
 
 class Agent:
     def __init__(self):
@@ -336,6 +384,8 @@ class Agent:
             FIND_FILE_TOOL,
             READ_FILE_TOOL,
             CREATE_FILE_TOOL,
+            WRITE_FILE_TOOL,
+            RENAME_FILE_TOOL,
 
             TYPE_TEXT_TOOL,
             PRESS_KEY_TOOL,
@@ -355,6 +405,8 @@ class Agent:
         self.registry.register("find_file", find_file)
         self.registry.register("read_file", read_file)
         self.registry.register("create_file", create_file)
+        self.registry.register("write_file", write_file)
+        self.registry.register("rename_file", rename_file)
 
 
 
@@ -394,33 +446,32 @@ class Agent:
             if not response.get("tool_calls"):
                 return response.get("content")
 
-            tool_call = response["tool_calls"][0]
+            for tool_call in response["tool_calls"]:
+                tool_name = tool_call["function"]["name"]
 
-            tool_name = tool_call["function"]["name"]
+                arguments = json.loads(
+                    tool_call["function"]["arguments"]
+                )
 
-            arguments = json.loads(
-                tool_call["function"]["arguments"]
-            )
+                if tool_name == "find_file" and not arguments.get("path"):
+                    arguments["path"] = self.workspace
 
-            if tool_name == "find_file" and not arguments.get("path"):
-                arguments["path"] = self.workspace
+                result = self.registry.execute(
+                    tool_name,
+                    arguments
+                )
 
-            result = self.registry.execute(
-                tool_name,
-                arguments
-            )
+                messages.append({
+                    "role": "assistant",
+                    "content": response.get("content", ""),
+                    "tool_calls": response["tool_calls"]
+                })
 
-            messages.append({
-                "role": "assistant",
-                "content": response.get("content", ""),
-                "tool_calls": [tool_call]
-            })
-
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tool_call["id"],
-                "content": json.dumps(result)
-            })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call["id"],
+                    "content": json.dumps(result)
+                })
 
 
 if __name__ == "__main__":
