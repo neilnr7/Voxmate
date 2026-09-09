@@ -39,6 +39,39 @@ def find_file(query, path):
             "error": str(e)
         }
 
+def read_file(path):
+    try:
+        with open(path, "r", encoding="utf-8") as file:
+            content = file.read()
 
+        return {
+            "success": True,
+            "path": path,
+            "content": content
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+def create_file(path):
+    try:
+        with open(path, "x", encoding="utf-8"):
+            pass
+
+        return {
+            "success": True,
+            "path": path,
+            "message": "File created successfully."
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 

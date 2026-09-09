@@ -1,6 +1,7 @@
 import json
 
-from tools.files import list_files, find_file
+from tools.files import list_files, find_file, read_file, create_file
+from pathlib import Path
 
 
 from llm.llama_client import LlamaClient
@@ -155,11 +156,51 @@ FIND_FILE_TOOL = {
     }
 }
 
+READ_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "read_file",
+        "description": (
+            "Read and return the contents of a text file from the Windows computer. "
+            "Use this when the user asks to read, show, or display the contents of a file."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "The complete path of the file to read."
+                }
+            },
+            "required": ["path"]
+        }
+    }
+}
+
+CREATE_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "create_file",
+        "description": "Create a new empty file at the specified path.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "The complete path of the new file."
+                }
+            },
+            "required": ["path"]
+        }
+    }
+}
+
 class Agent:
     def __init__(self):
         self.llm = LlamaClient()
 
         self.registry = ToolRegistry()
+        self.workspace = str(Path(__file__).resolve().parent)
 
         self.registry.register(
             "open_app",
@@ -193,6 +234,8 @@ class Agent:
 
             LIST_FILES_TOOL,
             FIND_FILE_TOOL,
+            READ_FILE_TOOL,
+            CREATE_FILE_TOOL,
             TYPE_TEXT_TOOL,
             PRESS_KEY_TOOL,
             HOTKEY_TOOL,
@@ -215,6 +258,8 @@ class Agent:
         # file tools
         self.registry.register("list_files", list_files)
         self.registry.register("find_file", find_file)
+        self.registry.register("read_file", read_file)
+        self.registry.register("create_file", create_file)
 
 
         
@@ -240,21 +285,29 @@ class Agent:
                     "Use open_app for other applications such as "
                     "Notepad or Calculator. "
                     "If the user asks to open a browser without "
-                    "naming one, use open_browser with no browser specified."
+                    "naming one, use open_browser with no browser specified. "
+                    "Use the available tools to complete the user's request. "
+                    "You may use multiple tools when necessary."
                 )
             },
             {
                 "role": "user",
-                "content": user_input
+                "content": (
+                    f"{user_input}\n\n"
+                    f"Current workspace: {self.workspace}"
+                )
             }
         ]
 
-        response = self.llm.chat(
-            messages,
-            tools=self.tools
-        )
+        while True:
+            response = self.llm.chat(
+                messages,
+                tools=self.tools
+            )
 
-        if response.get("tool_calls"):
+            if not response.get("tool_calls"):
+                return response.get("content")
+
             tool_call = response["tool_calls"][0]
 
             tool_name = tool_call["function"]["name"]
@@ -263,14 +316,25 @@ class Agent:
                 tool_call["function"]["arguments"]
             )
 
+            if tool_name == "find_file" and not arguments.get("path"):
+                arguments["path"] = self.workspace
+
             result = self.registry.execute(
                 tool_name,
                 arguments
             )
 
-            return result
+            messages.append({
+                "role": "assistant",
+                "content": response.get("content", ""),
+                "tool_calls": [tool_call]
+            })
 
-        return response.get("content")
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call["id"],
+                "content": json.dumps(result)
+            })
 
 
 if __name__ == "__main__":
