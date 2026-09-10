@@ -6,8 +6,10 @@ from tools.registry import ToolRegistry
 from tools.apps import (
     open_app,
     close_app,
+    focus_app,
     OPEN_APP_TOOL,
-    CLOSE_APP_TOOL
+    CLOSE_APP_TOOL,
+    FOCUS_APP_TOOL
 )
 
 from tools.browser import (
@@ -147,6 +149,11 @@ class Agent:
             close_app
         )
 
+        self.registry.register(
+            "focus_app",
+            focus_app
+        )
+
         # Browser tools
         self.registry.register(
             "open_browser",
@@ -230,6 +237,7 @@ class Agent:
         self.tools = [
             OPEN_APP_TOOL,
             CLOSE_APP_TOOL,
+            FOCUS_APP_TOOL,
 
             OPEN_BROWSER_TOOL,
             OPEN_URL_TOOL,
@@ -258,13 +266,35 @@ class Agent:
                 "role": "system",
                 "content": (
                     "You are VoxMate, a Windows computer assistant. "
+
+                    # Application tools
+                    "For application control: "
+                    "Use open_app when the user wants to open, start, launch, "
+                    "or run an application. "
+                    "Use close_app when the user wants to close, quit, exit, "
+                    "or shut down an application. "
+                    "Use focus_app when the user wants to focus, switch to, "
+                    "activate, bring to front, or show an application that is "
+                    "already running. "
+                    "If the user asks to focus or switch to an application, "
+                    "use focus_app and do not use open_app. "
+
+                    # Browser tools
                     "Use open_browser for Chrome, Google Chrome, Edge, "
                     "Microsoft Edge, or Firefox. "
-                    "Use open_app for other applications such as "
-                    "Notepad or Calculator. "
-                    "If the user asks to open a browser without "
-                    "naming one, use open_browser with no browser specified."
-                )
+                    "If the user names one of these browsers, pass that browser name. "
+                    "If the user asks to open a browser without specifying which one, "
+                    "use open_browser with no browser specified. "
+                    "Do NOT use open_app for Chrome, Edge, or Firefox. "
+
+                    # URL and web search
+                    "Use open_url when the user asks to open a website or URL. "
+                    "Use search_web when the user asks to search the web, "
+                    "look something up, or find information online. "
+
+                    # General rule
+                    "Choose the tool that most directly matches the user's request."
+                    )
             },
             {
                 "role": "user",
