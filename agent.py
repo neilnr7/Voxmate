@@ -1,7 +1,7 @@
 import json
 
 
-from tools.files import list_files, find_file, read_file, create_file, write_file, rename_file
+from tools.files import list_files, find_file, read_file, create_file, write_file, rename_file, copy_file, move_file, delete_file, get_file_info
 from pathlib import Path
 
 
@@ -260,9 +260,101 @@ RENAME_FILE_TOOL = {
     }
 }
 
+COPY_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "copy_file",
+        "description": "Copy a file from one location to another.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "description": "The complete path of the file to copy."
+                },
+                "destination": {
+                    "type": "string",
+                    "description": "The complete path where the copy should be created."
+                }
+            },
+            "required": ["source", "destination"]
+        }
+    }
+}
 
+MOVE_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "move_file",
+        "description": "Move a file or folder from one location to another.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "description": "The complete path of the file or folder to move."
+                },
+                "destination": {
+                    "type": "string",
+                    "description": "The destination path."
+                }
+            },
+            "required": ["source", "destination"]
+        }
+    }
+}
 
+DELETE_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "delete_file",
+        "description": (
+            "Delete a file or folder from the Windows computer. "
+            "Use find_file first when the user provides only a filename "
+            "without a complete path."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "The complete path of the file or folder to delete."
+                },
+                "recursive": {
+                    "type": "boolean",
+                    "description": (
+                        "Set to true only when the user explicitly wants "
+                        "a non-empty folder and all its contents deleted."
+                    )
+                }
+            },
+            "required": ["path"]
+        }
+    }
+}
 
+GET_FILE_INFO_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "get_file_info",
+        "description": (
+            "Get detailed information about a file or folder, "
+            "including its name, type, extension, size, and timestamps. "
+            "Use find_file first when the user provides only a filename "
+            "without a complete path."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "The complete path of the file or folder."
+                }
+            },
+            "required": ["path"]
+        }
+    }
+}
 
 
 class Agent:
@@ -271,6 +363,7 @@ class Agent:
 
         self.registry = ToolRegistry()
         self.workspace = str(Path(__file__).resolve().parent)
+        self.parent_workspace = str(Path(self.workspace).parent)
 
         # Application tools
         self.registry.register(
@@ -386,6 +479,10 @@ class Agent:
             CREATE_FILE_TOOL,
             WRITE_FILE_TOOL,
             RENAME_FILE_TOOL,
+            COPY_FILE_TOOL,
+            MOVE_FILE_TOOL,
+            DELETE_FILE_TOOL,
+            GET_FILE_INFO_TOOL,
 
             TYPE_TEXT_TOOL,
             PRESS_KEY_TOOL,
@@ -407,6 +504,10 @@ class Agent:
         self.registry.register("create_file", create_file)
         self.registry.register("write_file", write_file)
         self.registry.register("rename_file", rename_file)
+        self.registry.register("copy_file", copy_file)
+        self.registry.register("move_file", move_file)
+        self.registry.register("delete_file", delete_file)
+        self.registry.register("get_file_info", get_file_info)
 
 
 
@@ -426,6 +527,16 @@ class Agent:
                     "naming one, use open_browser with no browser specified. "
                     "Use the available tools to complete the user's request. "
                     "You may use multiple tools when necessary."
+                    "When the user refers to the parent folder of the workspace, "
+                    "use the parent folder path provided in the user context. "
+                    
+                    
+                    "When a file is mentioned without a complete path, always use find_file "
+                    "to locate it before moving, copying, renaming, deleting, reading, "
+                    "or getting information about it. "
+                    "Never guess or construct a file path yourself. "
+                    "Use the exact path returned by find_file for the next tool. "
+                    "Use the provided workspace PATH and parent folder PATH only as search locations."
                 )
             },
             {
@@ -433,6 +544,7 @@ class Agent:
                 "content": (
                     f"{user_input}\n\n"
                     f"Current workspace: {self.workspace}"
+                    f"Parent folder: {self.parent_workspace}"
                 )
             }
         ]
