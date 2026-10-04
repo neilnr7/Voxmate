@@ -1,38 +1,26 @@
 import os
 import subprocess
 from urllib.parse import urlparse
+from html.parser import HTMLParser
 
 
-BROWSER_PATHS = {
-    "chrome": [
-        os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
-        os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
-        os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
-    ],
-    "edge": [
-        os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
-        os.path.expandvars(r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
-    ],
-    "firefox": [
-        os.path.expandvars(r"%ProgramFiles%\Mozilla Firefox\firefox.exe"),
-        os.path.expandvars(r"%ProgramFiles(x86)%\Mozilla Firefox\firefox.exe"),
-    ],
-}
+def open_url(url, browser=None):
+    parsed = urlparse(url)
 
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return f"Invalid URL: {url}"
 
-def open_browser(browser=None):
     if not browser:
-        subprocess.Popen(
-            ["cmd", "/c", "start", "", "http://www.google.com"]
-        )
-        return "Default browser opened"
+        os.startfile(url)
+        return f"Opened {url}"
 
     browser_commands = {
         "chrome": "chrome",
         "google chrome": "chrome",
         "edge": "msedge",
         "microsoft edge": "msedge",
-        "firefox": "firefox"
+        "firefox": "firefox",
+        "brave": "brave"
     }
 
     browser_name = browser.lower().strip()
@@ -40,31 +28,11 @@ def open_browser(browser=None):
     if browser_name not in browser_commands:
         return f"Unsupported browser: {browser}"
 
-    command = browser_commands[browser_name]
-
-    installed = any(
-    os.path.exists(path)
-    for path in BROWSER_PATHS[browser_name]
-    )
-
-    if not installed:
-        return f"{browser} is not installed or could not be found."
-
     subprocess.Popen(
-        ["cmd", "/c", "start", "", command]
+        ["cmd", "/c", "start", "", browser_commands[browser_name], url]
     )
 
-    return f"{browser} opened"
-
-def open_url(url):
-    parsed = urlparse(url)
-
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        return f"Invalid URL: {url}"
-
-    os.startfile(url)
-
-    return f"Opened {url}"
+    return f"Opened {url} in {browser}"
 
 def search_web(query):
     if not query or not query.strip():
@@ -74,3 +42,57 @@ def search_web(query):
     os.startfile(url)
 
     return f"Searching for: {query}"
+
+
+class PageTextParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.text = []
+        self.skip_content = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() in {"script", "style", "noscript"}:
+            self.skip_content = True
+
+    def handle_endtag(self, tag):
+        if tag.lower() in {"script", "style", "noscript"}:
+            self.skip_content = False
+
+    def handle_data(self, data):
+        if not self.skip_content and data.strip():
+            self.text.append(data.strip())
+
+
+def get_page_text(url):
+    try:
+        import urllib.request
+
+        request = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/131.0.0.0 Safari/537.36"
+                )
+            }
+        )
+
+        with urllib.request.urlopen(request, timeout=10) as response:
+            html = response.read().decode("utf-8", errors="ignore")
+
+        parser = PageTextParser()
+        parser.feed(html)
+
+        return " ".join(parser.text)
+
+    except Exception as e:
+        return f"Failed to get page text: {e}"
+
+
+def go_back():
+    subprocess.Popen(
+        ["cmd", "/c", "start", "", "javascript:history.back()"]
+    )
+
+    return "Went back"

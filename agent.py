@@ -13,9 +13,10 @@ from tools.apps import (
 )
 
 from tools.browser import (
-    open_browser,
     open_url,
-    search_web
+    search_web,
+    get_page_text,
+    go_back
 )
 
 from tools.system import (
@@ -54,53 +55,32 @@ from tools.screenshot import (
     TAKE_SCREENSHOT_TOOL
 )
 
-
-OPEN_BROWSER_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "open_browser",
-        "description": (
-            "Open a web browser. Use this tool whenever the user asks "
-            "to open, start, launch, or run Chrome, Google Chrome, Edge, "
-            "Microsoft Edge, or Firefox. If the user names one of these "
-            "browsers, pass that browser name. If the user asks for a "
-            "browser without specifying which one, leave the browser "
-            "empty so the Windows default browser opens. Do NOT use "
-            "open_app for Chrome, Edge, or Firefox."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "browser": {
-                    "type": "string",
-                    "description": (
-                        "The browser to open: Chrome, Edge, or Firefox. "
-                        "Leave empty if the user does not specify a browser."
-                    )
-                }
-            },
-            "required": []
-        }
-    }
-}
-
-
 OPEN_URL_TOOL = {
     "type": "function",
     "function": {
         "name": "open_url",
         "description": (
-            "Open a website or URL in the default web browser. "
-            "Use this tool when the user asks to open a website, "
-            "such as YouTube, GitHub, Google, or another website. "
-            "The URL must be a valid HTTP or HTTPS URL."
+            "Open a website or web page. "
+            "Use this when the user wants to open a website or web page. "
+            "The user may optionally specify which browser to use. "
+            "If a browser is specified, open the website using that browser. "
+            "If no browser is specified, use the default browser."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "url": {
                     "type": "string",
-                    "description": "The complete HTTP or HTTPS URL to open."
+                    "description": (
+                        "The HTTP or HTTPS URL of the website or web page to open."
+                    )
+                },
+                "browser": {
+                    "type": "string",
+                    "description": (
+                        "Optional browser to use. "
+                        "If not specified, use the default browser."
+                    )
                 }
             },
             "required": ["url"]
@@ -131,6 +111,46 @@ SEARCH_WEB_TOOL = {
     }
 }
 
+GET_PAGE_TEXT_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "get_page_text",
+        "description": (
+            "Get the readable text content from a webpage. "
+            "Use this when the user asks to read, inspect, "
+            "or get the text from a specific webpage."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "The complete HTTP or HTTPS URL of the webpage."
+                }
+            },
+            "required": ["url"]
+        }
+    }
+}
+
+
+GO_BACK_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "go_back",
+        "description": (
+            "Go back to the previous page in the browser. "
+            "Use this when the user asks to go back, return to the "
+            "previous webpage, or navigate backward."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    }
+}
+
 
 class Agent:
     def __init__(self):
@@ -153,13 +173,6 @@ class Agent:
             "focus_app",
             focus_app
         )
-
-        # Browser tools
-        self.registry.register(
-            "open_browser",
-            open_browser
-        )
-
         self.registry.register(
             "open_url",
             open_url
@@ -168,6 +181,15 @@ class Agent:
         self.registry.register(
             "search_web",
             search_web
+        )
+        self.registry.register(
+            "get_page_text",
+            get_page_text
+        )
+
+        self.registry.register(
+            "go_back",
+            go_back
         )
 
         # System information tools
@@ -239,9 +261,12 @@ class Agent:
             CLOSE_APP_TOOL,
             FOCUS_APP_TOOL,
 
-            OPEN_BROWSER_TOOL,
+            
             OPEN_URL_TOOL,
             SEARCH_WEB_TOOL,
+            GET_PAGE_TEXT_TOOL,
+            GO_BACK_TOOL,
+
 
             GET_TIME_TOOL,
             GET_DATE_TOOL,
@@ -267,30 +292,21 @@ class Agent:
                 "content": (
                     "You are VoxMate, a Windows computer assistant. "
 
-                    # Application tools
-                    "For application control: "
-                    "Use open_app when the user wants to open, start, launch, "
-                    "or run an application. "
-                    "Use close_app when the user wants to close, quit, exit, "
-                    "or shut down an application. "
-                    "Use focus_app when the user wants to focus, switch to, "
-                    "activate, bring to front, or show an application that is "
-                    "already running. "
-                    "If the user asks to focus or switch to an application, "
-                    "use focus_app and do not use open_app. "
+                    "Application control: "
+                    "Use open_app when the user wants to open, start, launch, or run an application. "
+                    "Use close_app when the user wants to close, quit, exit, or shut down an application. "
+                    "Use focus_app when the user wants to focus, switch to, activate, bring to front, or show an application that is already running. "
+                    "If the user asks to focus or switch to an application, use focus_app and do not use open_app. "
 
-                    # Browser tools
-                    "Use open_browser for Chrome, Google Chrome, Edge, "
-                    "Microsoft Edge, or Firefox. "
-                    "If the user names one of these browsers, pass that browser name. "
-                    "If the user asks to open a browser without specifying which one, "
-                    "use open_browser with no browser specified. "
-                    "Do NOT use open_app for Chrome, Edge, or Firefox. "
-
-                    # URL and web search
-                    "Use open_url when the user asks to open a website or URL. "
-                    "Use search_web when the user asks to search the web, "
-                    "look something up, or find information online. "
+                    "Browser and web actions: "
+                    "Browsers are applications, so use open_app to open, start, launch, or run any browser. "
+                    "Do NOT use a separate browser-launching tool when opening a browser. "
+                    "If the user mentions a website, web page, or URL, use open_url rather than open_app. "
+                    "If the user provides an HTTP or HTTPS URL, always use open_url. "
+                    "If the user specifies a browser together with a website or URL, pass that browser to open_url. "
+                    "Use search_web when the user asks to search the web, look something up, or find information online. "
+                    "Use get_page_text when the user asks to read or get the text/content of a webpage. "
+                    "Use go_back when the user asks to go back in the browser. "
 
                     # General rule
                     "Choose the tool that most directly matches the user's request."
