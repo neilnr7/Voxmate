@@ -246,19 +246,20 @@ OPEN_APP_TOOL = {
     "function": {
         "name": "open_app",
         "description": (
-            "START or LAUNCH an application. "
-            "Use ONLY when the user wants to open, start, launch, "
-            "or run an application. "
-            "DO NOT use this tool when the user asks to focus, "
-            "switch to, activate, or bring an already running "
-            "application to the foreground."
+            "START or LAUNCH an installed application. "
+            "Use this tool only when the user wants to open, start, launch, "
+            "or run an application installed on the computer. "
+            "Do NOT use this tool when the user is asking to open a website "
+            "or web page. "
+            "Do NOT use this tool when the user asks to focus, switch to, "
+            "activate, or bring an already running application to the foreground."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "application": {
                     "type": "string",
-                    "description": "Name of the application to start."
+                    "description": "Name of the installed application to start."
                 }
             },
             "required": ["application"]
