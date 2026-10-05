@@ -55,6 +55,7 @@ from tools.screenshot import (
     TAKE_SCREENSHOT_TOOL
 )
 
+
 OPEN_URL_TOOL = {
     "type": "function",
     "function": {
@@ -110,6 +111,7 @@ SEARCH_WEB_TOOL = {
         }
     }
 }
+
 
 GET_PAGE_TEXT_TOOL = {
     "type": "function",
@@ -173,6 +175,7 @@ class Agent:
             "focus_app",
             focus_app
         )
+
         self.registry.register(
             "open_url",
             open_url
@@ -182,6 +185,7 @@ class Agent:
             "search_web",
             search_web
         )
+
         self.registry.register(
             "get_page_text",
             get_page_text
@@ -261,12 +265,10 @@ class Agent:
             CLOSE_APP_TOOL,
             FOCUS_APP_TOOL,
 
-            
             OPEN_URL_TOOL,
             SEARCH_WEB_TOOL,
             GET_PAGE_TEXT_TOOL,
             GO_BACK_TOOL,
-
 
             GET_TIME_TOOL,
             GET_DATE_TOOL,
@@ -308,9 +310,9 @@ class Agent:
                     "Use get_page_text when the user asks to read or get the text/content of a webpage. "
                     "Use go_back when the user asks to go back in the browser. "
 
-                    # General rule
+                    "General rule: "
                     "Choose the tool that most directly matches the user's request."
-                    )
+                )
             },
             {
                 "role": "user",
@@ -318,28 +320,39 @@ class Agent:
             }
         ]
 
-        response = self.llm.chat(
-            messages,
-            tools=self.tools
-        )
+        max_tool_steps = 5
 
-        if response.get("tool_calls"):
-            tool_call = response["tool_calls"][0]
-
-            tool_name = tool_call["function"]["name"]
-
-            arguments = json.loads(
-                tool_call["function"]["arguments"]
+        for _ in range(max_tool_steps):
+            response = self.llm.chat(
+                messages,
+                tools=self.tools
             )
+            print("LLM RESPONSE:", response)
 
-            result = self.registry.execute(
-                tool_name,
-                arguments
-            )
+            if not response.get("tool_calls"):
+                return response.get("content")
 
-            return result
+            messages.append(response)
 
-        return response.get("content")
+            for tool_call in response["tool_calls"]:
+                tool_name = tool_call["function"]["name"]
+
+                arguments = json.loads(
+                    tool_call["function"]["arguments"]
+                )
+
+                result = self.registry.execute(
+                    tool_name,
+                    arguments
+                )
+
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call["id"],
+                    "content": json.dumps(result)
+                })
+
+        return "I could not complete the request within the allowed number of tool steps."
 
 
 if __name__ == "__main__":
