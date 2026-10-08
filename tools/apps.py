@@ -240,6 +240,38 @@ def focus_app(application):
             "error": f"Could not focus {application}: {str(e)}"
         }
 
+    
+
+def list_running_apps():
+    running_apps = []
+
+    def collect_window(hwnd, extra):
+        if not win32gui.IsWindowVisible(hwnd):
+            return
+
+        title = win32gui.GetWindowText(hwnd)
+
+        if not title.strip():
+            return
+
+        running_apps.append(title.strip())
+
+    try:
+        # Find all visible top-level application windows
+        win32gui.EnumWindows(collect_window, None)
+
+        return {
+            "success": True,
+            "applications": running_apps
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Could not list running applications: {str(e)}"
+        }
+    
+
 
 OPEN_APP_TOOL = {
     "type": "function",
@@ -314,6 +346,23 @@ FOCUS_APP_TOOL = {
                 }
             },
             "required": ["application"]
+        }
+    }
+}
+
+
+LIST_RUNNING_APPS_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "list_running_apps",
+        "description": (
+            "List all currently running applications with visible "
+            "windows on the Windows computer."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
         }
     }
 }
