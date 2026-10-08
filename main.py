@@ -1,24 +1,31 @@
 from agent import Agent
+from stt.whisper_stt import WhisperSTT
 
 
 def main():
     print("VoxMate started.")
+    print("Press Enter to speak.")
     print("Type 'exit' to quit.\n")
 
     agent = Agent()
+    stt = WhisperSTT()
 
     while True:
         try:
-            user_input = input("You: ").strip()
+            user_input = input("Press Enter to speak: ")
 
-            if not user_input:
-                continue
-
-            if user_input.lower() in {"exit", "quit"}:
+            if user_input.strip().lower() in {"exit", "quit"}:
                 print("VoxMate: Goodbye!")
                 break
 
-            response = agent.run(user_input)
+            text = stt.listen()
+
+            if not text:
+                continue
+
+            print(f"You: {text}")
+
+            response = agent.run(text)
 
             print(f"VoxMate: {response}\n")
 
