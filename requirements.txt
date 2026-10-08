@@ -3,3 +3,5 @@ psutil
 pyperclip
 pyautogui
 pywin32
+pycaw
+WMI
