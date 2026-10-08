@@ -7,9 +7,11 @@ from tools.apps import (
     open_app,
     close_app,
     focus_app,
+    list_running_apps,
     OPEN_APP_TOOL,
     CLOSE_APP_TOOL,
-    FOCUS_APP_TOOL
+    FOCUS_APP_TOOL,
+    LIST_RUNNING_APPS_TOOL
 )
 
 from tools.browser import (
@@ -177,6 +179,11 @@ class Agent:
         )
 
         self.registry.register(
+            "list_running_apps",
+            list_running_apps
+        )
+
+        self.registry.register(
             "open_url",
             open_url
         )
@@ -264,6 +271,7 @@ class Agent:
             OPEN_APP_TOOL,
             CLOSE_APP_TOOL,
             FOCUS_APP_TOOL,
+            LIST_RUNNING_APPS_TOOL,
 
             OPEN_URL_TOOL,
             SEARCH_WEB_TOOL,
@@ -299,6 +307,8 @@ class Agent:
                     "Use close_app when the user wants to close, quit, exit, or shut down an application. "
                     "Use focus_app when the user wants to focus, switch to, activate, bring to front, or show an application that is already running. "
                     "If the user asks to focus or switch to an application, use focus_app and do not use open_app. "
+                    "Use list_running_apps when the user asks to see, list, "
+                    "or check which applications are currently running. "
 
                     "Browser and web actions: "
                     "Browsers are applications, so use open_app to open, start, launch, or run any browser. "
