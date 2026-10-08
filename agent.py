@@ -25,10 +25,27 @@ from tools.system import (
     get_time,
     get_date,
     get_battery,
+    set_volume,
+    mute_volume,
+    unmute_volume,
+    increase_volume,
+    decrease_volume,
+    set_brightness,
+    increase_brightness,
+    decrease_brightness,
     GET_TIME_TOOL,
     GET_DATE_TOOL,
-    GET_BATTERY_TOOL
+    GET_BATTERY_TOOL,
+    SET_VOLUME_TOOL,
+    MUTE_VOLUME_TOOL,
+    UNMUTE_VOLUME_TOOL,
+    INCREASE_VOLUME_TOOL,
+    DECREASE_VOLUME_TOOL,
+    SET_BRIGHTNESS_TOOL,
+    INCREASE_BRIGHTNESS_TOOL,
+    DECREASE_BRIGHTNESS_TOOL
 )
+
 
 from tools.clipboard import (
     read_clipboard,
@@ -219,6 +236,18 @@ class Agent:
             get_battery
         )
 
+        #volume registry
+        self.registry.register("set_volume", set_volume)
+        self.registry.register("mute_volume", mute_volume)
+        self.registry.register("unmute_volume", unmute_volume)
+        self.registry.register("increase_volume", increase_volume)
+        self.registry.register("decrease_volume", decrease_volume)
+
+        #brightness registry
+        self.registry.register("set_brightness", set_brightness)
+        self.registry.register("increase_brightness", increase_brightness)
+        self.registry.register("decrease_brightness", decrease_brightness)
+
         # Clipboard tools
         self.registry.register(
             "read_clipboard",
@@ -281,6 +310,15 @@ class Agent:
             GET_TIME_TOOL,
             GET_DATE_TOOL,
             GET_BATTERY_TOOL,
+            SET_VOLUME_TOOL,
+            MUTE_VOLUME_TOOL,
+            UNMUTE_VOLUME_TOOL,
+            INCREASE_VOLUME_TOOL,
+            DECREASE_VOLUME_TOOL,
+
+            SET_BRIGHTNESS_TOOL,
+            INCREASE_BRIGHTNESS_TOOL,
+            DECREASE_BRIGHTNESS_TOOL,
 
             READ_CLIPBOARD_TOOL,
             WRITE_CLIPBOARD_TOOL,
@@ -319,6 +357,29 @@ class Agent:
                     "Use search_web when the user asks to search the web, look something up, or find information online. "
                     "Use get_page_text when the user asks to read or get the text/content of a webpage. "
                     "Use go_back when the user asks to go back in the browser. "
+
+                    # Volume control
+                    "Use set_volume when the user asks to set, increase, decrease, "
+                    "or change the system volume to a specific percentage. "
+                    "Use mute_volume when the user asks to mute the system audio. "
+                    "Use unmute_volume when the user asks to unmute the system audio. "
+
+                    "Use increase_volume when the user asks to increase, raise, "
+                    "turn up, or make the volume louder. "
+
+                    "Use decrease_volume when the user asks to decrease, lower, "
+                    "turn down, or make the volume quieter. "
+
+                    # Brightness control
+                    "Use set_brightness when the user asks to set the screen brightness "
+                    "to a specific percentage. "
+
+                    "Use increase_brightness when the user asks to increase, raise, "
+                    "turn up, or make the brightness higher. "
+
+                    "Use decrease_brightness when the user asks to decrease, lower, "
+                    "turn down, or make the brightness lower. "
+
 
                     "General rule: "
                     "Choose the tool that most directly matches the user's request."
