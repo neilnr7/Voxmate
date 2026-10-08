@@ -12,14 +12,19 @@ from tools.registry import ToolRegistry
 from tools.apps import (
     open_app,
     close_app,
+    focus_app,
+    list_running_apps,
     OPEN_APP_TOOL,
-    CLOSE_APP_TOOL
+    CLOSE_APP_TOOL,
+    FOCUS_APP_TOOL,
+    LIST_RUNNING_APPS_TOOL
 )
 
 from tools.browser import (
-    open_browser,
     open_url,
-    search_web
+    search_web,
+    get_page_text,
+    go_back
 )
 
 from tools.system import (
@@ -59,52 +64,32 @@ from tools.screenshot import (
 )
 
 
-OPEN_BROWSER_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "open_browser",
-        "description": (
-            "Open a web browser. Use this tool whenever the user asks "
-            "to open, start, launch, or run Chrome, Google Chrome, Edge, "
-            "Microsoft Edge, or Firefox. If the user names one of these "
-            "browsers, pass that browser name. If the user asks for a "
-            "browser without specifying which one, leave the browser "
-            "empty so the Windows default browser opens. Do NOT use "
-            "open_app for Chrome, Edge, or Firefox."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "browser": {
-                    "type": "string",
-                    "description": (
-                        "The browser to open: Chrome, Edge, or Firefox. "
-                        "Leave empty if the user does not specify a browser."
-                    )
-                }
-            },
-            "required": []
-        }
-    }
-}
-
-
 OPEN_URL_TOOL = {
     "type": "function",
     "function": {
         "name": "open_url",
         "description": (
-            "Open a website or URL in the default web browser. "
-            "Use this tool when the user asks to open a website, "
-            "such as YouTube, GitHub, Google, or another website. "
-            "The URL must be a valid HTTP or HTTPS URL."
+            "Open a website or web page. "
+            "Use this when the user wants to open a website or web page. "
+            "The user may optionally specify which browser to use. "
+            "If a browser is specified, open the website using that browser. "
+            "If no browser is specified, use the default browser."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "url": {
                     "type": "string",
-                    "description": "The complete HTTP or HTTPS URL to open."
+                    "description": (
+                        "The HTTP or HTTPS URL of the website or web page to open."
+                    )
+                },
+                "browser": {
+                    "type": "string",
+                    "description": (
+                        "Optional browser to use. "
+                        "If not specified, use the default browser."
+                    )
                 }
             },
             "required": ["url"]
@@ -136,87 +121,6 @@ SEARCH_WEB_TOOL = {
 }
 
 
-
-LIST_FILES_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "list_files",
-        "description": "List files and folders inside a specified directory.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "The directory path to list."
-                }
-            },
-            "required": ["path"]
-        }
-    }
-}
-
-FIND_FILE_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "find_file",
-        "description": "Search for files whose names contain the given query inside a directory and its subdirectories.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "The filename or part of the filename to search for."
-                },
-                "path": {
-                    "type": "string",
-                    "description": "The directory where the search should start."
-                }
-            },
-            "required": ["query", "path"]
-        }
-    }
-}
-
-READ_FILE_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "read_file",
-        "description": (
-            "Read and return the contents of a text file from the Windows computer. "
-            "Use this when the user asks to read, show, or display the contents of a file."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "The complete path of the file to read."
-                }
-            },
-            "required": ["path"]
-        }
-    }
-}
-
-CREATE_FILE_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "create_file",
-        "description": "Create a new empty file at the specified path.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "The complete path of the new file."
-                }
-            },
-            "required": ["path"]
-        }
-    }
-}
-
-
 class Agent:
     def __init__(self):
         self.llm = LlamaClient()
@@ -235,10 +139,14 @@ class Agent:
             close_app
         )
 
-        # Browser tools
         self.registry.register(
-            "open_browser",
-            open_browser
+            "focus_app",
+            focus_app
+        )
+
+        self.registry.register(
+            "list_running_apps",
+            list_running_apps
         )
 
         self.registry.register(
@@ -249,6 +157,16 @@ class Agent:
         self.registry.register(
             "search_web",
             search_web
+        )
+
+        self.registry.register(
+            "get_page_text",
+            get_page_text
+        )
+
+        self.registry.register(
+            "go_back",
+            go_back
         )
 
         # System information tools
@@ -318,10 +236,13 @@ class Agent:
         self.tools = [
             OPEN_APP_TOOL,
             CLOSE_APP_TOOL,
+            FOCUS_APP_TOOL,
+            LIST_RUNNING_APPS_TOOL,
 
-            OPEN_BROWSER_TOOL,
             OPEN_URL_TOOL,
             SEARCH_WEB_TOOL,
+            GET_PAGE_TEXT_TOOL,
+            GO_BACK_TOOL,
 
             GET_TIME_TOOL,
             GET_DATE_TOOL,
@@ -371,9 +292,7 @@ class Agent:
                     "Use open_app for other applications such as "
                     "Notepad or Calculator. "
                     "If the user asks to open a browser without "
-                    "naming one, use open_browser with no browser specified. "
-                    "Use the available tools to complete the user's request. "
-                    "You may use multiple tools when necessary."
+                    "naming one, use open_browser with no browser specified."
                 )
             },
             {
@@ -385,42 +304,29 @@ class Agent:
             }
         ]
 
-        while True:
-            response = self.llm.chat(
-                messages,
-                tools=self.tools
-            )
+        response = self.llm.chat(
+            messages,
+            tools=self.tools
+        )
 
-            if not response.get("tool_calls"):
-                return response.get("content")
-
+        if response.get("tool_calls"):
             tool_call = response["tool_calls"][0]
 
-            tool_name = tool_call["function"]["name"]
+            for tool_call in response["tool_calls"]:
+                tool_name = tool_call["function"]["name"]
 
-            arguments = json.loads(
-                tool_call["function"]["arguments"]
-            )
-
-            if tool_name == "find_file" and not arguments.get("path"):
-                arguments["path"] = self.workspace
+                arguments = json.loads(
+                    tool_call["function"]["arguments"]
+                )
 
             result = self.registry.execute(
                 tool_name,
                 arguments
             )
 
-            messages.append({
-                "role": "assistant",
-                "content": response.get("content", ""),
-                "tool_calls": [tool_call]
-            })
+            return result
 
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tool_call["id"],
-                "content": json.dumps(result)
-            })
+        return response.get("content")
 
 
 if __name__ == "__main__":
