@@ -1,3 +1,4 @@
+
 import requests
 
 
@@ -20,8 +21,11 @@ class LlamaClient:
             timeout=120
         )
 
-        response.raise_for_status()
+        if not response.ok:
+            print("\nLLM SERVER ERROR")
+            print("HTTP status:", response.status_code)
+            print("Response body:", response.text)
+            response.raise_for_status()
 
         data = response.json()
-
         return data["choices"][0]["message"]

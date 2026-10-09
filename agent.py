@@ -1,5 +1,5 @@
+import os
 import json
-
 from llm.llama_client import LlamaClient
 from tools.registry import ToolRegistry
 
@@ -12,6 +12,20 @@ from tools.apps import (
     CLOSE_APP_TOOL,
     FOCUS_APP_TOOL,
     LIST_RUNNING_APPS_TOOL
+)
+
+from tools.files import (
+    list_files,
+    find_file,
+    read_file,
+    create_file,
+    write_file,
+    rename_file,
+    copy_file,
+    move_file,
+    delete_file,
+    get_file_info,
+    create_folder,
 )
 
 from tools.browser import (
@@ -173,6 +187,217 @@ GO_BACK_TOOL = {
 }
 
 
+
+LIST_FILES_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "list_files",
+        "description": "List files and folders in a specified directory.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Directory path to list."}
+            },
+            "required": ["path"]
+        }
+    }
+}
+
+FIND_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "find_file",
+        "description": "Recursively search for files by full or partial filename.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Filename or part of filename."},
+                "path": {"type": "string", "description": "Directory in which to search."}
+            },
+            "required": ["query", "path"]
+        }
+    }
+}
+
+READ_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "read_file",
+        "description": "Read the contents of a text file.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "File path to read."}
+            },
+            "required": ["path"]
+        }
+    }
+}
+
+CREATE_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "create_file",
+        "description": "Create a new empty file without overwriting an existing file.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Path for the new file."}
+            },
+            "required": ["path"]
+        }
+    }
+}
+
+WRITE_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "write_file",
+        "description": "Write text content to a file, creating it or overwriting its contents.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "File path."},
+                "content": {"type": "string", "description": "Text to write."}
+            },
+            "required": ["path", "content"]
+        }
+    }
+}
+
+RENAME_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "rename_file",
+        "description": "Rename an existing file within its current directory.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Existing file path."},
+                "new_name": {"type": "string", "description": "New filename only."}
+            },
+            "required": ["path", "new_name"]
+        }
+    }
+}
+
+COPY_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "copy_file",
+        "description": "Copy a file to a destination path or existing destination directory.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "source": {"type": "string", "description": "Source file path."},
+                "destination": {"type": "string", "description": "Destination path or directory."}
+            },
+            "required": ["source", "destination"]
+        }
+    }
+}
+
+MOVE_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "move_file",
+        "description": "Move a file or folder to a destination path or existing directory.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "source": {"type": "string", "description": "Source file or folder path."},
+                "destination": {"type": "string", "description": "Destination path or directory."}
+            },
+            "required": ["source", "destination"]
+        }
+    }
+}
+
+CREATE_FOLDER_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "create_folder",
+        "description": (
+            "Create a folder at the specified path. "
+            "Use an absolute path when the user refers to "
+            "the VoxMate project folder."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": (
+                        "Full path of the folder to create."
+                    ),
+                }
+            },
+            "required": ["path"],
+        },
+    },
+}
+
+
+DELETE_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "delete_file",
+        "description": "Delete a file or folder. Recursive deletion must only be used when explicitly requested.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "File or folder path to delete."},
+                "recursive": {"type": "boolean", "description": "Delete a folder and its contents only when explicitly requested. Defaults to false."}
+            },
+            "required": ["path"]
+        }
+    }
+}
+
+GET_FILE_INFO_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "get_file_info",
+        "description": "Get a file or folder's name, type, extension, size, and timestamps.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "File or folder path."}
+            },
+            "required": ["path"]
+        }
+    }
+}
+
+
+
+def format_file_info(result):
+    """Format get_file_info output into a readable response."""
+
+    # Handle registry-wrapped results.
+    if isinstance(result, dict) and isinstance(result.get("result"), dict):
+        result = result["result"]
+
+    if not isinstance(result, dict):
+        return None
+
+    if not result.get("success"):
+        error = result.get("error", "Unknown error.")
+        return f"Could not retrieve file information: {error}"
+
+    return (
+        "File information:\n"
+        f"Path: {result.get('path', 'Unknown')}\n"
+        f"Name: {result.get('name', 'Unknown')}\n"
+        f"Type: {result.get('type', 'Unknown')}\n"
+        f"Extension: {result.get('extension') or 'None'}\n"
+        f"Size: {result.get('size_bytes', 'Unknown')} bytes\n"
+        f"Created: {result.get('created', 'Unknown')}\n"
+        f"Modified: {result.get('modified', 'Unknown')}\n"
+        f"Accessed: {result.get('accessed', 'Unknown')}"
+    )
+
+
 class Agent:
     def __init__(self):
         self.llm = LlamaClient()
@@ -247,6 +472,20 @@ class Agent:
         self.registry.register("set_brightness", set_brightness)
         self.registry.register("increase_brightness", increase_brightness)
         self.registry.register("decrease_brightness", decrease_brightness)
+
+        #File registry
+        self.registry.register("list_files", list_files)
+        self.registry.register("find_file", find_file)
+        self.registry.register("read_file", read_file)
+        self.registry.register("create_file", create_file)
+        self.registry.register("write_file", write_file)
+        self.registry.register("rename_file", rename_file)
+        self.registry.register("copy_file", copy_file)
+        self.registry.register("move_file", move_file)
+        self.registry.register("delete_file", delete_file)
+        self.registry.register("get_file_info", get_file_info)
+        self.registry.register("create_folder",create_folder)
+
 
         # Clipboard tools
         self.registry.register(
@@ -330,10 +569,23 @@ class Agent:
             CLICK_TOOL,
             SCROLL_TOOL,
 
-            TAKE_SCREENSHOT_TOOL
+            TAKE_SCREENSHOT_TOOL,
+
+            LIST_FILES_TOOL,
+            FIND_FILE_TOOL,
+            READ_FILE_TOOL,
+            CREATE_FILE_TOOL,
+            WRITE_FILE_TOOL,
+            RENAME_FILE_TOOL,
+            COPY_FILE_TOOL,
+            MOVE_FILE_TOOL,
+            DELETE_FILE_TOOL,
+            GET_FILE_INFO_TOOL,
+            CREATE_FOLDER_TOOL,
         ]
 
     def run(self, user_input):
+        project_root = os.path.dirname(os.path.abspath(__file__))
         messages = [
             {
                 "role": "system",
@@ -415,6 +667,89 @@ class Agent:
 
                     "General rule: "
                     "Choose the tool that most directly matches the user's request."
+
+
+                    # File management
+                    "File management: "
+                    "Understand the user's intended file operation from the meaning "
+                    "of the request, not just specific keywords. Adapt to different "
+                    "wording, filenames, paths, and folder names. "
+
+                    f"The VoxMate project root is: {project_root}. "
+                    "When the user says 'project folder', 'project directory', "
+                    "'VoxMate folder', or 'the project', use this exact path. "
+                    "Do not interpret these phrases as literal directory names. "
+                    "When a filename is provided without a directory, resolve it "
+                    "relative to the project root unless the user specifies another location. "
+
+
+                    "When the user asks to list the project folder, call list_files "
+                    "with the exact VoxMate project root path. "
+                    "When the user asks to find a file in the project folder, call "
+                    "find_file with the filename as query and the exact project root "
+                    "path as path. "
+                    "For relative file paths, interpret them relative to the project "
+                    "root unless the user specifies another directory. "
+                    "Never pass phrases such as 'project folder' or 'current folder' "
+                    "as literal filesystem paths. "
+
+                    "Choose the most appropriate file-management tool for the task. "
+                    "Use list_files to inspect a directory, find_file to search "
+                    "recursively by filename or partial filename, read_file to read "
+                    "text content, create_file to create an empty file, write_file "
+                    "to write content, rename_file to rename, copy_file to copy, "
+                    "move_file to move, delete_file to delete, and get_file_info "
+                    "to retrieve metadata. "
+
+                    "When the user asks for file information, file details, properties, "
+                    "size, extension, or timestamps, you MUST call get_file_info. "
+
+                    "If the file is identified only by filename, first call find_file. "
+                    "Then call get_file_info using the exact path returned by find_file. "
+                    "Do not treat finding the file as completing a request for its metadata. "
+                    "Do not ask the user whether they want size or other details when they "
+                    "have already requested file information. "
+
+                    "Resolve missing source paths before performing file operations. "
+                    "When only a filename is provided, use find_file with the most "
+                    "relevant search directory available from the user's request "
+                    "and context. Use the exact returned path; never invent paths. "
+
+                    "Determine source and destination from the user's intent. "
+                    "Use the specified directory when provided. Do not confuse a "
+                    "destination folder with a destination filename. "
+
+                    "For tasks requiring multiple operations, call tools in the "
+                    "necessary order, use earlier results as inputs to later calls, "
+                    "and continue until the requested task is complete. Avoid "
+                    "unnecessary tool calls. If a search returns multiple plausible "
+                    "matches, do not arbitrarily choose one when the intended file "
+                    "is unclear. "
+
+                    "Check tool results before reporting success. If a tool fails, "
+                    "use its error to determine whether a safe alternative or another "
+                    "search is appropriate. Never claim an operation succeeded when "
+                    "the result indicates failure. "
+                    "FOLDER MANAGEMENT RULES: "
+                    "When the user asks to create a folder, use the create_folder tool "
+                    "with the full folder path. "
+                    "When the user asks to create a folder and then move a file into it, "
+                    "call create_folder first, then call move_file using the source file "
+                    "path and destination folder path. "
+                    "Do not call move_file until create_folder succeeds, unless the "
+                    "destination folder already exists. "
+                    "If create_folder fails, do not call move_file. Explain the error "
+                    "to the user. "
+                    "Use the VoxMate project root as the base directory when the user "
+                    "says 'in the project folder'. "
+                    "Never claim a folder was created or a file was moved unless the "
+                    "corresponding tool result confirms success. "
+
+
+
+                    "Use recursive deletion only when the user explicitly requests "
+                    "deleting a folder and its contents. Never overwrite or delete "
+                    "existing data unless the requested operation clearly calls for it. "
                 )
             },
             {
@@ -423,66 +758,206 @@ class Agent:
             }
         ]
 
+
         max_tool_steps = 5
+
+        metadata_phrases = (
+            "file information",
+            "file info",
+            "file details",
+            "file properties",
+            "show information",
+            "get information",
+            "metadata",
+        )
+
+        is_metadata_request = any(
+            phrase in user_input.casefold()
+            for phrase in metadata_phrases
+        )
 
         for _ in range(max_tool_steps):
             response = self.llm.chat(
                 messages,
                 tools=self.tools
             )
+
             print("LLM RESPONSE:", response)
 
-            if not response.get("tool_calls"):
-                return response.get("content")
+            tool_calls = response.get("tool_calls")
+            content = response.get("content")
 
+            # Return a normal final response when available.
+            if not tool_calls:
+                if isinstance(content, str) and content.strip():
+                    return content
+
+                # Ask the model to produce a useful final response.
+                messages.append(response)
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "Provide a useful final response to the original "
+                        "request using the available tool results. "
+                        "Do not claim success without evidence."
+                    )
+                })
+                continue
+
+            # Preserve the assistant message containing tool calls.
             messages.append(response)
 
-            
-            for tool_call in response["tool_calls"]:
+
+            for tool_call in tool_calls:
                 tool_name = tool_call["function"]["name"]
-
-                print(f"\nEXECUTING TOOL: {tool_name}", flush=True)
-
-                arguments = json.loads(
-                    tool_call["function"]["arguments"]
+                raw_arguments = tool_call["function"].get(
+                    "arguments", "{}"
                 )
 
-                print(f"ARGUMENTS: {arguments}", flush=True)
+                try:
+                    if isinstance(raw_arguments, str):
+                        arguments = json.loads(raw_arguments)
+                    elif isinstance(raw_arguments, dict):
+                        arguments = raw_arguments
+                    else:
+                        raise ValueError(
+                            "Tool arguments must be a JSON object."
+                        )
 
-                result = self.registry.execute(
-                    tool_name,
-                    arguments
+                    if not isinstance(arguments, dict):
+                        raise ValueError(
+                            "Tool arguments must be a JSON object."
+                        )
+
+                except (json.JSONDecodeError, ValueError) as e:
+                    print(
+                        f"INVALID TOOL ARGUMENTS for {tool_name}: "
+                        f"{raw_arguments}"
+                    )
+                    result = {
+                        "success": False,
+                        "error": f"Invalid tool arguments: {e}",
+                    }
+
+                else:
+                    print(
+                        f"\nEXECUTING TOOL: {tool_name}",
+                        flush=True
+                    )
+                    print(f"ARGUMENTS: {arguments}", flush=True)
+
+                    result = self.registry.execute(
+                        tool_name,
+                        arguments
+                    )
+
+                print(
+                    "TOOL RESULT:",
+                    json.dumps(result, indent=2, default=str),
+                    flush=True
                 )
 
-                print(f"TOOL RESULT: {result}", flush=True)
+                if (
+                    tool_name == "find_file"
+                    and is_metadata_request
+                ):
+                    search_result = result
 
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call["id"],
-                    "content": json.dumps(result)
-                })
+                    if (
+                        isinstance(search_result, dict)
+                        and isinstance(search_result.get("result"), dict)
+                    ):
+                        search_result = search_result["result"]
 
-                # Stop if the tool failed, including failures wrapped inside its result.
+                    if not isinstance(search_result, dict):
+                        return (
+                            "Could not interpret the file search result."
+                        )
+
+                    if not search_result.get("success"):
+                        return (
+                            "File search failed: "
+                            + search_result.get(
+                                "error", "Unknown error."
+                            )
+                        )
+
+                    matches = search_result.get("matches", [])
+
+                    if not matches:
+                        return (
+                            f"No file matching "
+                            f"'{arguments.get('query', '')}' was found."
+                        )
+
+                    if len(matches) > 1:
+                        return (
+                            f"Found {len(matches)} matching files. "
+                            "Please specify which file you want "
+                            "information about:\n"
+                            + "\n".join(
+                                f"- {match}" for match in matches
+                            )
+                        )
+
+                    info_result = self.registry.execute(
+                        "get_file_info",
+                        {"path": matches[0]}
+                    )
+
+                    print(
+                        "TOOL RESULT (get_file_info):",
+                        json.dumps(
+                            info_result,
+                            indent=2,
+                            default=str
+                        ),
+                        flush=True
+                    )
+
+                    formatted = format_file_info(info_result)
+
+                    if formatted is not None:
+                        return formatted
+
+                    return (
+                        "The file was found, but its metadata "
+                        "could not be formatted."
+                    )
+
+                if tool_name == "get_file_info":
+                    formatted = format_file_info(result)
+
+                    if formatted is not None:
+                        return formatted
+
                 tool_failed = (
-                    result.get("success") is False
-                    or (
-                        isinstance(result.get("result"), dict)
-                        and result["result"].get("success") is False
+                    isinstance(result, dict)
+                    and (
+                        result.get("success") is False
+                        or (
+                            isinstance(result.get("result"), dict)
+                            and result["result"].get("success") is False
+                        )
                     )
                 )
 
                 if tool_failed:
+                    inner_result = result.get("result")
                     error_message = (
                         result.get("error")
                         or (
-                            result["result"].get("error")
-                            if isinstance(result.get("result"), dict)
+                            inner_result.get("error")
+                            if isinstance(inner_result, dict)
                             else None
                         )
                         or f"Tool '{tool_name}' failed."
                     )
 
-                    print(f"STOPPING TOOL SEQUENCE: {error_message}", flush=True)
+                    print(
+                        f"STOPPING TOOL SEQUENCE: {error_message}",
+                        flush=True
+                    )
 
                     return (
                         f"I couldn't complete the request because "
@@ -490,7 +965,57 @@ class Agent:
                         "No further actions were executed."
                     )
 
-        return "I could not complete the request within the allowed number of tool steps."
+                llm_result = result
+
+                if isinstance(result, dict):
+                    inner_result = result.get("result")
+
+                    if (
+                        tool_name == "read_file"
+                        and isinstance(inner_result, dict)
+                    ):
+                        content = inner_result.get("content")
+
+                        if isinstance(content, str) and len(content) > 4000:
+                            inner_result = inner_result.copy()
+                            inner_result["content"] = (
+                                content[:4000]
+                                + "\n\n[Content truncated for context "
+                                + f"limits. Original length: {len(content)} "
+                                + "characters.]"
+                            )
+
+                            llm_result = result.copy()
+                            llm_result["result"] = inner_result
+
+                    elif (
+                        tool_name == "read_file"
+                        and isinstance(result.get("content"), str)
+                    ):
+                        content = result["content"]
+
+                        if len(content) > 4000:
+                            llm_result = result.copy()
+                            llm_result["content"] = (
+                                content[:4000]
+                                + "\n\n[Content truncated for context "
+                                + f"limits. Original length: {len(content)} "
+                                + "characters.]"
+                            )
+
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call["id"],
+                    "content": json.dumps(llm_result, default=str)
+                })
+
+        return (
+            "I could not complete the request within the allowed "
+            "number of tool steps."
+        )
+
+
+
 
 
 
