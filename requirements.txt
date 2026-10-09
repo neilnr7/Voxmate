@@ -8,3 +8,4 @@ WMI
 faster-whisper
 sounddevice
 numpy
+silero-vad
