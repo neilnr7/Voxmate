@@ -347,10 +347,42 @@ class Agent:
                     "If the user asks to focus or switch to an application, use focus_app and do not use open_app. "
                     "Use list_running_apps when the user asks to see, list, "
                     "or check which applications are currently running. "
+                    "When a request requires opening or using an application that may already be running, first call list_running_apps and wait for its result. "
+                    "Inspect the returned applications list before choosing the next action. "
+                    "If any listed window title identifies the requested application, do not call open_app; call focus_app instead. "
+                    "Only call open_app when the requested application is not present in the running applications list. "
+                    "For a request to open a browser and search the web, check the running applications list first, focus the existing browser if it is listed, and then call search_web. "
+                    "Do not call open_app and focus_app for the same application in one planned sequence. "
+                    "When a user requests an action that requires typing into a specific application, ensure that application is in the foreground before calling type_text. "
+                    "If the application is not already running, call open_app first. "
+                    "After opening or identifying the application, call focus_app to bring its window to the foreground before typing. "
+                    "Do not call type_text until the intended application has been focused successfully. "
+                    "When focus_app reports failure, do not call type_text; stop the sequence and report the error. "
+                    "When a request contains dependent actions, wait for the result of the earlier action before deciding which tool to call next. "
+
+
+                     # Added: mandatory sequential tool execution
+                    "Mandatory sequential tool execution: "
+                    "When a task depends on the result of a previous tool, call only that tool in the current response. "
+                    "Do not include dependent or subsequent tool calls in the same assistant response. "
+                    "For application workflows, call list_running_apps by itself first, then wait for its tool result before deciding whether to call focus_app or open_app. "
+                    "Wait for the result of focus_app or open_app before calling type_text or any other dependent action. "
+                    "Call take_screenshot only after all requested preceding actions have completed successfully. "
+                    "Never call focus_app and open_app together for the same application. "
+                    "Never call type_text or take_screenshot before the preceding required actions have succeeded. "
 
                     "Browser and web actions: "
-                    "Browsers are applications, so use open_app to open, start, launch, or run any browser. "
-                    "Do NOT use a separate browser-launching tool when opening a browser. "
+                    "Browser and web search coordination: "
+                    "When the user asks to search the web, use search_web to perform the search. "
+                    "Do not call open_app just because the user mentions a browser in a request that also asks for a web search, unless opening the browser itself is an explicit, separate requirement. "
+                    "If the user explicitly asks to open a browser and then search, first call list_running_apps to check whether that browser is already running. "
+                    "Wait for the list_running_apps result before choosing the next tool. "
+                    "If the requested browser is already running, call focus_app to bring its existing window to the foreground. "
+                    "If the requested browser is not running, call open_app to launch it. "
+                    "After the browser has been focused or launched, perform the requested web search using search_web. "
+                    "Do not call open_app and focus_app together for the same application. "
+                    "Do not skip the running-app check just because multiple tools could be called in a single response. "
+
                     "If the user mentions a website, web page, or URL, use open_url rather than open_app. "
                     "If the user provides an HTTP or HTTPS URL, always use open_url. "
                     "If the user specifies a browser together with a website or URL, pass that browser to open_url. "
@@ -405,17 +437,24 @@ class Agent:
 
             messages.append(response)
 
+            
             for tool_call in response["tool_calls"]:
                 tool_name = tool_call["function"]["name"]
+
+                print(f"\nEXECUTING TOOL: {tool_name}", flush=True)
 
                 arguments = json.loads(
                     tool_call["function"]["arguments"]
                 )
 
+                print(f"ARGUMENTS: {arguments}", flush=True)
+
                 result = self.registry.execute(
                     tool_name,
                     arguments
                 )
+
+                print(f"TOOL RESULT: {result}", flush=True)
 
                 messages.append({
                     "role": "tool",
@@ -423,7 +462,36 @@ class Agent:
                     "content": json.dumps(result)
                 })
 
+                # Stop if the tool failed, including failures wrapped inside its result.
+                tool_failed = (
+                    result.get("success") is False
+                    or (
+                        isinstance(result.get("result"), dict)
+                        and result["result"].get("success") is False
+                    )
+                )
+
+                if tool_failed:
+                    error_message = (
+                        result.get("error")
+                        or (
+                            result["result"].get("error")
+                            if isinstance(result.get("result"), dict)
+                            else None
+                        )
+                        or f"Tool '{tool_name}' failed."
+                    )
+
+                    print(f"STOPPING TOOL SEQUENCE: {error_message}", flush=True)
+
+                    return (
+                        f"I couldn't complete the request because "
+                        f"{tool_name} failed: {error_message}. "
+                        "No further actions were executed."
+                    )
+
         return "I could not complete the request within the allowed number of tool steps."
+
 
 
 if __name__ == "__main__":
