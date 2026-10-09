@@ -2,6 +2,7 @@ import os
 import subprocess
 from urllib.parse import urlparse
 from html.parser import HTMLParser
+import time
 
 
 def open_url(url, browser=None):
@@ -40,6 +41,7 @@ def search_web(query):
 
     url = "https://www.google.com/search?q=" + query.replace(" ", "+")
     os.startfile(url)
+    time.sleep(3)
 
     return f"Searching for: {query}"
 

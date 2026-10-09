@@ -2,6 +2,8 @@ import json
 import subprocess
 import win32gui
 import win32con
+import time
+
 
 
 def open_app(application):
@@ -14,6 +16,15 @@ def open_app(application):
         }
 
     try:
+        # First, try to focus an existing application window
+        focus_result = focus_app(application)
+
+        if focus_result.get("success"):
+            return {
+                "success": True,
+                "message": f"{application} is already running and has been focused."
+            }
+
         # Get applications registered in the Windows Start Menu
         result = subprocess.run(
             [
@@ -54,51 +65,61 @@ def open_app(application):
                     ]
                 )
 
-                return {
-                    "success": True,
-                    "message": f"{name} opened successfully."
-                }
+                break
 
-        # Try partial application name
-        for app in apps:
-            name = app.get("Name", "")
+        else:
+            # Try partial application name
+            for app in apps:
+                name = app.get("Name", "")
 
-            if application_lower in name.lower():
-                app_id = app.get("AppID")
+                if application_lower in name.lower():
+                    app_id = app.get("AppID")
 
-                subprocess.Popen(
-                    [
-                        "explorer.exe",
-                        f"shell:AppsFolder\\{app_id}"
-                    ]
+                    subprocess.Popen(
+                        [
+                            "explorer.exe",
+                            f"shell:AppsFolder\\{app_id}"
+                        ]
+                    )
+
+                    break
+
+            else:
+                # Try applications available through PATH
+                path_result = subprocess.run(
+                    ["where", application],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
                 )
 
+                if path_result.returncode != 0:
+                    return {
+                        "success": False,
+                        "error": f"Could not find application '{application}'."
+                    }
+
+                executable = path_result.stdout.strip().splitlines()[0]
+                subprocess.Popen([executable])
+
+        # Wait for the application window to appear and focus it
+        for _ in range(20):
+            time.sleep(0.25)
+
+            focus_result = focus_app(application)
+
+            if focus_result.get("success"):
                 return {
                     "success": True,
-                    "message": f"{name} opened successfully."
+                    "message": f"{application} opened and focused successfully."
                 }
-
-        # Try applications available through PATH
-        path_result = subprocess.run(
-            ["where", application],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-
-        if path_result.returncode == 0:
-            executable = path_result.stdout.strip().splitlines()[0]
-
-            subprocess.Popen([executable])
-
-            return {
-                "success": True,
-                "message": f"{application} opened successfully."
-            }
 
         return {
             "success": False,
-            "error": f"Could not find application '{application}'."
+            "error": (
+                f"{application} was launched, but its window "
+                "could not be found or focused."
+            )
         }
 
     except Exception as e:
@@ -106,6 +127,7 @@ def open_app(application):
             "success": False,
             "error": f"Could not open {application}: {str(e)}"
         }
+
 
 
 def close_app(application):
@@ -173,6 +195,7 @@ def close_app(application):
             "error": f"Could not close {application}: {str(e)}"
         }
 
+
 def focus_app(application):
     application = application.strip()
 
@@ -226,12 +249,25 @@ def focus_app(application):
                 win32con.SW_RESTORE
             )
 
-        # Bring the window to the foreground
-        win32gui.SetForegroundWindow(matched_window)
+        # Try bringing the requested window to the foreground
+        for _ in range(3):
+            try:
+                win32gui.BringWindowToTop(matched_window)
+                win32gui.SetForegroundWindow(matched_window)
+            except Exception:
+                pass
+
+            time.sleep(0.2)
+
+            if win32gui.GetForegroundWindow() == matched_window:
+                return {
+                    "success": True,
+                    "message": f"{application} focused successfully."
+                }
 
         return {
-            "success": True,
-            "message": f"{application} focused successfully."
+            "success": False,
+            "error": f"Could not bring '{application}' to the foreground."
         }
 
     except Exception as e:
@@ -239,6 +275,7 @@ def focus_app(application):
             "success": False,
             "error": f"Could not focus {application}: {str(e)}"
         }
+
 
     
 
