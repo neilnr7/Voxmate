@@ -1,10 +1,14 @@
-import sounddevice as sd
-import numpy as np
-import wave
-import tempfile
+
 import os
+import tempfile
+import wave
+
+import numpy as np
+import sounddevice as sd
+import torch
 
 from faster_whisper import WhisperModel
+from silero_vad import load_silero_vad
 
 
 class WhisperSTT:
@@ -15,63 +19,117 @@ class WhisperSTT:
             compute_type="int8"
         )
 
-    def listen(
-        self,
-        sample_rate=16000,
-        max_duration=8,
-        silence_duration=1.2,
-        threshold=500
-    ):
+        self.vad_model = load_silero_vad()
+
+        self.sample_rate = 16000
+        self.silence_duration = 2.0
+        self.start_timeout = 5.0
+        self.max_duration = 15.0
+
+        # Silero VAD requires 512 samples at 16 kHz.
+        self.chunk_size = 512
+        self.chunk_duration = self.chunk_size / self.sample_rate
+
+    def listen(self):
         print("Listening...")
 
-        audio = sd.rec(
-            int(max_duration * sample_rate),
-            samplerate=sample_rate,
-            channels=1,
-            dtype="int16"
+        silence_chunks_required = int(
+            self.silence_duration / self.chunk_duration
         )
 
-        sd.wait()
+        timeout_chunks = int(
+            self.start_timeout / self.chunk_duration
+        )
 
-        audio = audio.flatten()
+        max_chunks = int(
+            self.max_duration / self.chunk_duration
+        )
 
-        # Find where speech starts
-        volume = np.abs(audio)
+        audio_chunks = []
+        speech_started = False
+        silence_chunks = 0
+        waited_chunks = 0
 
-        speech_indices = np.where(volume > threshold)[0]
+        self.vad_model.reset_states()
 
-        if len(speech_indices) == 0:
+        try:
+            with sd.InputStream(
+                samplerate=self.sample_rate,
+                channels=1,
+                dtype="float32",
+                blocksize=self.chunk_size
+            ) as stream:
+
+                while waited_chunks < max_chunks:
+                    chunk, overflowed = stream.read(
+                        self.chunk_size
+                    )
+                    waited_chunks += 1
+
+                    if overflowed:
+                        print("Warning: Audio input overflow.")
+
+                    audio = chunk[:, 0].copy()
+                    audio_tensor = torch.from_numpy(audio)
+
+                    with torch.inference_mode():
+                        speech_probability = self.vad_model(
+                            audio_tensor,
+                            self.sample_rate
+                        ).item()
+
+                    is_speech = speech_probability >= 0.5
+
+                    if not speech_started:
+                        if is_speech:
+                            speech_started = True
+                            print("Speech detected...")
+                            audio_chunks.append(audio)
+                            continue
+
+                        if waited_chunks >= timeout_chunks:
+                            print("No speech detected.")
+                            return ""
+
+                        continue
+
+                    audio_chunks.append(audio)
+
+                    if is_speech:
+                        silence_chunks = 0
+                    else:
+                        silence_chunks += 1
+
+                    if silence_chunks >= silence_chunks_required:
+                        break
+
+        finally:
+            self.vad_model.reset_states()
+
+        if not speech_started or not audio_chunks:
             print("No speech detected.")
             return ""
 
-        start = max(0, speech_indices[0] - int(0.2 * sample_rate))
+        audio = np.concatenate(audio_chunks)
+        audio = np.clip(audio, -1.0, 1.0)
 
-        # Find where speech ends
-        silence_samples = int(silence_duration * sample_rate)
-
-        end = len(audio)
-
-        for i in range(start + silence_samples, len(audio)):
-            chunk = audio[i - silence_samples:i]
-
-            if np.max(np.abs(chunk)) < threshold:
-                end = i
-                break
-
-        audio = audio[start:end]
-
-        with tempfile.NamedTemporaryFile(
-            suffix=".wav",
-            delete=False
-        ) as temp:
-            filename = temp.name
+        audio_int16 = (audio * 32767).astype(np.int16)
+        filename = None
 
         try:
+            with tempfile.NamedTemporaryFile(
+                suffix=".wav",
+                delete=False
+            ) as temp:
+                filename = temp.name
+
             with wave.open(filename, "wb") as wav_file:
                 wav_file.setnchannels(1)
                 wav_file.setsampwidth(2)
-                wav_file.setframerate(sample_rate)
-                wav_file.writeframes(audio.tobytes())
+                wav_file.setframerate(self.sample_rate)
+                wav_file.writeframes(audio_int16.tobytes())
+
+            print("Processing...")
 
             segments, _ = self.model.transcribe(
                 filename,
@@ -80,20 +138,18 @@ class WhisperSTT:
                 vad_filter=True
             )
 
-            text = " ".join(
-                segment.text for segment in segments
-            )
-
-            return text.strip()
+            return " ".join(
+                segment.text.strip()
+                for segment in segments
+            ).strip()
 
         finally:
-            if os.path.exists(filename):
+            if filename and os.path.exists(filename):
                 os.remove(filename)
 
 
 if __name__ == "__main__":
     stt = WhisperSTT()
-
     text = stt.listen()
 
     if text:
