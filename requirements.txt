@@ -9,3 +9,5 @@ faster-whisper
 sounddevice
 numpy
 silero-vad
+pyttsx3
+av<19

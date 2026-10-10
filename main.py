@@ -1,5 +1,6 @@
 from agent import Agent
 from stt.whisper_stt import WhisperSTT
+from tts.speech import TextToSpeech 
 
 
 def main():
@@ -9,6 +10,7 @@ def main():
 
     agent = Agent()
     stt = WhisperSTT()
+    tts = TextToSpeech()
 
     while True:
         try:
@@ -28,6 +30,7 @@ def main():
             response = agent.run(text)
 
             print(f"VoxMate: {response}\n")
+            tts.speak(str(response))
 
         except KeyboardInterrupt:
             print("\nVoxMate: Goodbye!")
