@@ -1,6 +1,6 @@
 from agent import Agent
 from stt.whisper_stt import WhisperSTT
-from tts.speech import TextToSpeech 
+from tts.tts_engine import TTSEngine
 
 
 def main():
@@ -10,7 +10,7 @@ def main():
 
     agent = Agent()
     stt = WhisperSTT()
-    tts = TextToSpeech()
+    tts = TTSEngine()
 
     while True:
         try:
