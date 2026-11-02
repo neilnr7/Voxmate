@@ -11,3 +11,4 @@ numpy
 silero-vad
 pyttsx3
 av<19
+PySide6
