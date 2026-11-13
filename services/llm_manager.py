@@ -11,11 +11,21 @@ class LLMManager:
         self,
         model="Qwen/Qwen3-1.7B-GGUF:Q8_0",
         port=8082,
-        startup_timeout=180
+        startup_timeout=180,
+        n_gpu_layers=99,
+        ctx_size=16384,
+        parallel=1,
+        flash_attn="on",
+        reasoning="off"
     ):
         self.model = model
         self.port = port
         self.startup_timeout = startup_timeout
+        self.n_gpu_layers = n_gpu_layers
+        self.ctx_size = ctx_size
+        self.parallel = parallel
+        self.flash_attn = flash_attn
+        self.reasoning = reasoning
 
         self.base_url = f"http://127.0.0.1:{port}"
 
@@ -65,7 +75,12 @@ class LLMManager:
         command = [
             "llama-server",
             "-hf", self.model,
-            "--port", str(self.port)
+            "--port", str(self.port),
+            "-ngl", str(self.n_gpu_layers),
+            "-c", str(self.ctx_size),
+            "-np", str(self.parallel),
+            "--flash-attn", self.flash_attn,
+            "--reasoning", self.reasoning
         ]
 
         try:

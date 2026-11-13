@@ -1,8 +1,4 @@
-
 import os
-import tempfile
-import wave
-
 import numpy as np
 import sounddevice as sd
 import torch
@@ -12,17 +8,20 @@ from silero_vad import load_silero_vad
 
 
 class WhisperSTT:
-    def __init__(self, model_size="small"):
+    def __init__(self, model_size="base"):
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        compute_type = "float16" if device == "cuda" else "int8"
+
         self.model = WhisperModel(
             model_size,
-            device="cpu",
-            compute_type="int8"
+            device=device,
+            compute_type=compute_type
         )
 
         self.vad_model = load_silero_vad()
 
         self.sample_rate = 16000
-        self.silence_duration = 2.0
+        self.silence_duration = 0.7
         self.start_timeout = 5.0
         self.max_duration = 15.0
 
@@ -113,39 +112,18 @@ class WhisperSTT:
         audio = np.concatenate(audio_chunks)
         audio = np.clip(audio, -1.0, 1.0)
 
-        audio_int16 = (audio * 32767).astype(np.int16)
-        filename = None
+        print("Processing...")
 
-        try:
-            with tempfile.NamedTemporaryFile(
-                suffix=".wav",
-                delete=False
-            ) as temp:
-                filename = temp.name
+        segments, _ = self.model.transcribe(
+            audio,
+            language="en",
+            beam_size=1
+        )
 
-            with wave.open(filename, "wb") as wav_file:
-                wav_file.setnchannels(1)
-                wav_file.setsampwidth(2)
-                wav_file.setframerate(self.sample_rate)
-                wav_file.writeframes(audio_int16.tobytes())
-
-            print("Processing...")
-
-            segments, _ = self.model.transcribe(
-                filename,
-                language="en",
-                beam_size=5,
-                vad_filter=True
-            )
-
-            return " ".join(
-                segment.text.strip()
-                for segment in segments
-            ).strip()
-
-        finally:
-            if filename and os.path.exists(filename):
-                os.remove(filename)
+        return " ".join(
+            segment.text.strip()
+            for segment in segments
+        ).strip()
 
 
 if __name__ == "__main__":
