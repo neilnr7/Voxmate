@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from llm.llama_client import LlamaClient
 from tools.registry import ToolRegistry
 
@@ -585,6 +586,55 @@ class Agent:
         ]
 
     def run(self, user_input):
+        agent_start_time = time.perf_counter()
+
+        llm_timings = []
+        tool_timings = []
+
+        def print_performance_summary():
+            total_llm_time = sum(llm_timings)
+            total_tool_time = sum(
+                duration for _, duration in tool_timings
+            )
+            total_agent_time = time.perf_counter() - agent_start_time
+
+            print("\n========== VOXMATE PERFORMANCE ==========", flush=True)
+
+            print("\nLLM:", flush=True)
+
+            for index, duration in enumerate(llm_timings, start=1):
+                print(
+                    f"  LLM Call {index}: {duration:.3f} sec",
+                    flush=True
+                )
+
+            print(
+                f"  Total LLM time: {total_llm_time:.3f} sec",
+                flush=True
+            )
+
+            print("\nTOOLS:", flush=True)
+
+            for tool_name, duration in tool_timings:
+                print(
+                    f"  {tool_name}: {duration:.3f} sec",
+                    flush=True
+                )
+
+            print(
+                f"  Total tool time: {total_tool_time:.3f} sec",
+                flush=True
+            )
+
+            print("\nAGENT:", flush=True)
+
+            print(
+                f"  Total processing time: {total_agent_time:.3f} sec",
+                flush=True
+            )
+
+            print("\n==========================================\n", flush=True)
+
         project_root = os.path.dirname(os.path.abspath(__file__))
         messages = [
             {
@@ -592,164 +642,180 @@ class Agent:
                 "content": (
                     "You are VoxMate, a Windows computer assistant. "
 
-                    "Application control: "
-                    "Use open_app when the user wants to open, start, launch, or run an application. "
-                    "Use close_app when the user wants to close, quit, exit, or shut down an application. "
-                    "Use focus_app when the user wants to focus, switch to, activate, bring to front, or show an application that is already running. "
-                    "If the user asks to focus or switch to an application, use focus_app and do not use open_app. "
-                    "Use list_running_apps when the user asks to see, list, "
-                    "or check which applications are currently running. "
-                    "When a request requires opening or using an application that may already be running, first call list_running_apps and wait for its result. "
-                    "Inspect the returned applications list before choosing the next action. "
-                    "If any listed window title identifies the requested application, do not call open_app; call focus_app instead. "
-                    "Only call open_app when the requested application is not present in the running applications list. "
-                    "For a request to open a browser and search the web, check the running applications list first, focus the existing browser if it is listed, and then call search_web. "
-                    "Do not call open_app and focus_app for the same application in one planned sequence. "
-                    "When a user requests an action that requires typing into a specific application, ensure that application is in the foreground before calling type_text. "
-                    "If the application is not already running, call open_app first. "
-                    "After opening or identifying the application, call focus_app to bring its window to the foreground before typing. "
-                    "Do not call type_text until the intended application has been focused successfully. "
-                    "When focus_app reports failure, do not call type_text; stop the sequence and report the error. "
-                    "When a request contains dependent actions, wait for the result of the earlier action before deciding which tool to call next. "
+                    
+                    
+                "Application control: "
+                "Use open_app when the user wants to open, start, launch, or run an application. "
+                "open_app automatically focuses the application if it is already running, "
+                "or launches it if it is not running. "
+                "Do not call list_running_apps before open_app. "
+                "After open_app succeeds, do not call focus_app for the same application "
+                "because open_app already focuses it. "
 
+                "Use close_app when the user wants to close, quit, exit, or shut down an application. "
 
-                     # Added: mandatory sequential tool execution
-                    "Mandatory sequential tool execution: "
-                    "When a task depends on the result of a previous tool, call only that tool in the current response. "
-                    "Do not include dependent or subsequent tool calls in the same assistant response. "
-                    "For application workflows, call list_running_apps by itself first, then wait for its tool result before deciding whether to call focus_app or open_app. "
-                    "Wait for the result of focus_app or open_app before calling type_text or any other dependent action. "
-                    "Call take_screenshot only after all requested preceding actions have completed successfully. "
-                    "Never call focus_app and open_app together for the same application. "
-                    "Never call type_text or take_screenshot before the preceding required actions have succeeded. "
+                "Use focus_app when the user wants to focus, switch to, activate, "
+                "bring to front, or show an application that is already running. "
+                "If the user explicitly asks to focus or switch to an application, "
+                "use focus_app and do not use open_app. "
 
-                    "Browser and web actions: "
-                    "Browser and web search coordination: "
-                    "When the user asks to search the web, use search_web to perform the search. "
-                    "Do not call open_app just because the user mentions a browser in a request that also asks for a web search, unless opening the browser itself is an explicit, separate requirement. "
-                    "If the user explicitly asks to open a browser and then search, first call list_running_apps to check whether that browser is already running. "
-                    "Wait for the list_running_apps result before choosing the next tool. "
-                    "If the requested browser is already running, call focus_app to bring its existing window to the foreground. "
-                    "If the requested browser is not running, call open_app to launch it. "
-                    "After the browser has been focused or launched, perform the requested web search using search_web. "
-                    "Do not call open_app and focus_app together for the same application. "
-                    "Do not skip the running-app check just because multiple tools could be called in a single response. "
+                "Use list_running_apps when the user asks to see, list, "
+                "or check which applications are currently running. "
 
-                    "If the user mentions a website, web page, or URL, use open_url rather than open_app. "
-                    "If the user provides an HTTP or HTTPS URL, always use open_url. "
-                    "If the user specifies a browser together with a website or URL, pass that browser to open_url. "
-                    "Use search_web when the user asks to search the web, look something up, or find information online. "
-                    "Use get_page_text when the user asks to read or get the text/content of a webpage. "
-                    "Use go_back when the user asks to go back in the browser. "
+                "For a request to open a browser and search the web, "
+                "use search_web to perform the search. "
+                "Do not call list_running_apps or open_app unless opening or "
+                "switching to the browser is explicitly requested. "
 
-                    # Volume control
-                    "Use set_volume when the user asks to set, increase, decrease, "
-                    "or change the system volume to a specific percentage. "
-                    "Use mute_volume when the user asks to mute the system audio. "
-                    "Use unmute_volume when the user asks to unmute the system audio. "
+                "When a user requests an action that requires typing into a specific application, "
+                "call open_app first to ensure the application is running and focused. "
+                "Do not call type_text until open_app reports success. "
+                "If open_app reports failure, do not call type_text; stop the sequence "
+                "and report the error. "
 
-                    "Use increase_volume when the user asks to increase, raise, "
-                    "turn up, or make the volume louder. "
+                "When a request contains dependent actions, wait for the result "
+                "of the earlier action before deciding the next action. "
 
-                    "Use decrease_volume when the user asks to decrease, lower, "
-                    "turn down, or make the volume quieter. "
+                "Tool execution rules: "
+                "When a request contains dependent operations, return only the next "
+                "required tool call in the current response. "
+                "Wait for its execution result before deciding the next operation. "
+                "Do not generate multiple dependent tool calls in the same response. "
 
-                    # Brightness control
-                    "Use set_brightness when the user asks to set the screen brightness "
-                    "to a specific percentage. "
+                # Added: mandatory sequential tool execution
+                "Mandatory sequential tool execution: "
+                "When a task depends on the result of a previous tool, call only that tool in the current response. "
+                "Do not include dependent or subsequent tool calls in the same assistant response. "
+                "For application workflows, call the directly appropriate application tool "
+                "(open_app or focus_app) by itself first. "
+                "Wait for its tool result before deciding the next action. "
+                "Wait for the result of focus_app or open_app before calling type_text or any other dependent action. "
+                "Call take_screenshot only after all requested preceding actions have completed successfully. "
+                "Never call focus_app and open_app together for the same application. "
+                "Never call type_text or take_screenshot before the preceding required actions have succeeded. "
 
-                    "Use increase_brightness when the user asks to increase, raise, "
-                    "turn up, or make the brightness higher. "
+                "Browser and web actions: "
+                "Browser and web search coordination: "
+                "When the user asks to search the web, use search_web to perform the search. "
+                "Do not call open_app just because the user mentions a browser in a request that also asks for a web search, unless opening the browser itself is an explicit, separate requirement. "
+                "If the user explicitly asks to open a browser and then search, first call open_app. "
+                "open_app automatically focuses the browser if it is already running or launches it if it is not running. "
+                "Wait for the open_app result before calling search_web. "
+                "After the browser has been focused or launched, perform the requested web search using search_web. "
+                "Do not call open_app and focus_app together for the same application. "
 
-                    "Use decrease_brightness when the user asks to decrease, lower, "
-                    "turn down, or make the brightness lower. "
+                "If the user mentions a website, web page, or URL, use open_url rather than open_app. "
+                "If the user provides an HTTP or HTTPS URL, always use open_url. "
+                "If the user specifies a browser together with a website or URL, pass that browser to open_url. "
+                "Use search_web when the user asks to search the web, look something up, or find information online. "
+                "Use get_page_text when the user asks to read or get the text/content of a webpage. "
+                "Use go_back when the user asks to go back in the browser. "
 
+                # Volume control
+                "Use set_volume when the user asks to set, increase, decrease, "
+                "or change the system volume to a specific percentage. "
+                "Use mute_volume when the user asks to mute the system audio. "
+                "Use unmute_volume when the user asks to unmute the system audio. "
 
-                    "General rule: "
-                    "Choose the tool that most directly matches the user's request."
+                "Use increase_volume when the user asks to increase, raise, "
+                "turn up, or make the volume louder. "
 
+                "Use decrease_volume when the user asks to decrease, lower, "
+                "turn down, or make the volume quieter. "
 
-                    # File management
-                    "File management: "
-                    "Understand the user's intended file operation from the meaning "
-                    "of the request, not just specific keywords. Adapt to different "
-                    "wording, filenames, paths, and folder names. "
+                # Brightness control
+                "Use set_brightness when the user asks to set the screen brightness "
+                "to a specific percentage. "
 
-                    f"The VoxMate project root is: {project_root}. "
-                    "When the user says 'project folder', 'project directory', "
-                    "'VoxMate folder', or 'the project', use this exact path. "
-                    "Do not interpret these phrases as literal directory names. "
-                    "When a filename is provided without a directory, resolve it "
-                    "relative to the project root unless the user specifies another location. "
+                "Use increase_brightness when the user asks to increase, raise, "
+                "turn up, or make the brightness higher. "
 
+                "Use decrease_brightness when the user asks to decrease, lower, "
+                "turn down, or make the brightness lower. "
 
-                    "When the user asks to list the project folder, call list_files "
-                    "with the exact VoxMate project root path. "
-                    "When the user asks to find a file in the project folder, call "
-                    "find_file with the filename as query and the exact project root "
-                    "path as path. "
-                    "For relative file paths, interpret them relative to the project "
-                    "root unless the user specifies another directory. "
-                    "Never pass phrases such as 'project folder' or 'current folder' "
-                    "as literal filesystem paths. "
+                "General rule: "
+                "Choose the tool that most directly matches the user's request."
 
-                    "Choose the most appropriate file-management tool for the task. "
-                    "Use list_files to inspect a directory, find_file to search "
-                    "recursively by filename or partial filename, read_file to read "
-                    "text content, create_file to create an empty file, write_file "
-                    "to write content, rename_file to rename, copy_file to copy, "
-                    "move_file to move, delete_file to delete, and get_file_info "
-                    "to retrieve metadata. "
+                # File management
+                "File management: "
+                "Understand the user's intended file operation from the meaning "
+                "of the request, not just specific keywords. Adapt to different "
+                "wording, filenames, paths, and folder names. "
 
-                    "When the user asks for file information, file details, properties, "
-                    "size, extension, or timestamps, you MUST call get_file_info. "
+                f"The VoxMate project root is: {project_root}. "
+                "When the user says 'project folder', 'project directory', "
+                "'VoxMate folder', or 'the project', use this exact path. "
+                "Do not interpret these phrases as literal directory names. "
+                "When a filename is provided without a directory, resolve it "
+                "relative to the project root unless the user specifies another location. "
 
-                    "If the file is identified only by filename, first call find_file. "
-                    "Then call get_file_info using the exact path returned by find_file. "
-                    "Do not treat finding the file as completing a request for its metadata. "
-                    "Do not ask the user whether they want size or other details when they "
-                    "have already requested file information. "
+                "When the user asks to list the project folder, call list_files "
+                "with the exact VoxMate project root path. "
+                "When the user asks to find a file in the project folder, call "
+                "find_file with the filename as query and the exact project root "
+                "path as path. "
+                "For relative file paths, interpret them relative to the project "
+                "root unless the user specifies another directory. "
+                "Never pass phrases such as 'project folder' or 'current folder' "
+                "as literal filesystem paths. "
 
-                    "Resolve missing source paths before performing file operations. "
-                    "When only a filename is provided, use find_file with the most "
-                    "relevant search directory available from the user's request "
-                    "and context. Use the exact returned path; never invent paths. "
+                "Choose the most appropriate file-management tool for the task. "
+                "Use list_files to inspect a directory, find_file to search "
+                "recursively by filename or partial filename, read_file to read "
+                "text content, create_file to create an empty file, write_file "
+                "to write content, rename_file to rename, copy_file to copy, "
+                "move_file to move, delete_file to delete, and get_file_info "
+                "to retrieve metadata. "
 
-                    "Determine source and destination from the user's intent. "
-                    "Use the specified directory when provided. Do not confuse a "
-                    "destination folder with a destination filename. "
+                "When the user asks for file information, file details, properties, "
+                "size, extension, or timestamps, you MUST call get_file_info. "
 
-                    "For tasks requiring multiple operations, call tools in the "
-                    "necessary order, use earlier results as inputs to later calls, "
-                    "and continue until the requested task is complete. Avoid "
-                    "unnecessary tool calls. If a search returns multiple plausible "
-                    "matches, do not arbitrarily choose one when the intended file "
-                    "is unclear. "
+                "If the file is identified only by filename, first call find_file. "
+                "Then call get_file_info using the exact path returned by find_file. "
+                "Do not treat finding the file as completing a request for its metadata. "
+                "Do not ask the user whether they want size or other details when they "
+                "have already requested file information. "
 
-                    "Check tool results before reporting success. If a tool fails, "
-                    "use its error to determine whether a safe alternative or another "
-                    "search is appropriate. Never claim an operation succeeded when "
-                    "the result indicates failure. "
-                    "FOLDER MANAGEMENT RULES: "
-                    "When the user asks to create a folder, use the create_folder tool "
-                    "with the full folder path. "
-                    "When the user asks to create a folder and then move a file into it, "
-                    "call create_folder first, then call move_file using the source file "
-                    "path and destination folder path. "
-                    "Do not call move_file until create_folder succeeds, unless the "
-                    "destination folder already exists. "
-                    "If create_folder fails, do not call move_file. Explain the error "
-                    "to the user. "
-                    "Use the VoxMate project root as the base directory when the user "
-                    "says 'in the project folder'. "
-                    "Never claim a folder was created or a file was moved unless the "
-                    "corresponding tool result confirms success. "
+                "Resolve missing source paths before performing file operations. "
+                "When only a filename is provided, use find_file with the most "
+                "relevant search directory available from the user's request "
+                "and context. Use the exact returned path; never invent paths. "
 
+                "Determine source and destination from the user's intent. "
+                "Use the specified directory when provided. Do not confuse a "
+                "destination folder with a destination filename. "
 
+                "For tasks requiring multiple operations, call tools in the "
+                "necessary order, use earlier results as inputs to later calls, "
+                "and continue until the requested task is complete. Avoid "
+                "unnecessary tool calls. If a search returns multiple plausible "
+                "matches, do not arbitrarily choose one when the intended file "
+                "is unclear. "
 
-                    "Use recursive deletion only when the user explicitly requests "
-                    "deleting a folder and its contents. Never overwrite or delete "
-                    "existing data unless the requested operation clearly calls for it. "
+                "Check tool results before reporting success. If a tool fails, "
+                "use its error to determine whether a safe alternative or another "
+                "search is appropriate. Never claim an operation succeeded when "
+                "the result indicates failure. "
+
+                "FOLDER MANAGEMENT RULES: "
+                "When the user asks to create a folder, use the create_folder tool "
+                "with the full folder path. "
+                "When the user asks to create a folder and then move a file into it, "
+                "call create_folder first, then call move_file using the source file "
+                "path and destination folder path. "
+                "Do not call move_file until create_folder succeeds, unless the "
+                "destination folder already exists. "
+                "If create_folder fails, do not call move_file. Explain the error "
+                "to the user. "
+                "Use the VoxMate project root as the base directory when the user "
+                "says 'in the project folder'. "
+                "Never claim a folder was created or a file was moved unless the "
+                "corresponding tool result confirms success. "
+
+                "Use recursive deletion only when the user explicitly requests "
+                "deleting a folder and its contents. Never overwrite or delete "
+                "existing data unless the requested operation clearly calls for it. "
+
                 )
             },
             {
@@ -777,9 +843,19 @@ class Agent:
         )
 
         for _ in range(max_tool_steps):
+            llm_start_time = time.perf_counter()
+
             response = self.llm.chat(
                 messages,
                 tools=self.tools
+            )
+
+            llm_duration = time.perf_counter() - llm_start_time
+            llm_timings.append(llm_duration)
+
+            print(
+                f"LLM CALL TIME: {llm_duration:.3f} sec",
+                flush=True
             )
 
             print("LLM RESPONSE:", response)
@@ -790,6 +866,7 @@ class Agent:
             # Return a normal final response when available.
             if not tool_calls:
                 if isinstance(content, str) and content.strip():
+                    print_performance_summary()
                     return content
 
                 # Ask the model to produce a useful final response.
@@ -846,9 +923,20 @@ class Agent:
                     )
                     print(f"ARGUMENTS: {arguments}", flush=True)
 
+                    tool_start_time = time.perf_counter()
+
                     result = self.registry.execute(
                         tool_name,
                         arguments
+                    )
+
+                    tool_duration = time.perf_counter() - tool_start_time
+                    tool_timings.append((tool_name, tool_duration))
+
+                    print(
+                        f"TOOL EXECUTION TIME ({tool_name}): "
+                        f"{tool_duration:.3f} sec",
+                        flush=True
                     )
 
                 print(
@@ -870,11 +958,13 @@ class Agent:
                         search_result = search_result["result"]
 
                     if not isinstance(search_result, dict):
+                        print_performance_summary()
                         return (
                             "Could not interpret the file search result."
                         )
 
                     if not search_result.get("success"):
+                        print_performance_summary()
                         return (
                             "File search failed: "
                             + search_result.get(
@@ -885,12 +975,14 @@ class Agent:
                     matches = search_result.get("matches", [])
 
                     if not matches:
+                        print_performance_summary()
                         return (
                             f"No file matching "
                             f"'{arguments.get('query', '')}' was found."
                         )
 
                     if len(matches) > 1:
+                        print_performance_summary()
                         return (
                             f"Found {len(matches)} matching files. "
                             "Please specify which file you want "
@@ -900,9 +992,20 @@ class Agent:
                             )
                         )
 
+                    tool_start_time = time.perf_counter()
+
                     info_result = self.registry.execute(
                         "get_file_info",
                         {"path": matches[0]}
+                    )
+
+                    tool_duration = time.perf_counter() - tool_start_time
+                    tool_timings.append(("get_file_info", tool_duration))
+
+                    print(
+                        f"TOOL EXECUTION TIME (get_file_info): "
+                        f"{tool_duration:.3f} sec",
+                        flush=True
                     )
 
                     print(
@@ -918,8 +1021,10 @@ class Agent:
                     formatted = format_file_info(info_result)
 
                     if formatted is not None:
+                        print_performance_summary()
                         return formatted
 
+                    print_performance_summary()
                     return (
                         "The file was found, but its metadata "
                         "could not be formatted."
@@ -929,6 +1034,7 @@ class Agent:
                     formatted = format_file_info(result)
 
                     if formatted is not None:
+                        print_performance_summary()
                         return formatted
 
                 tool_failed = (
@@ -959,6 +1065,7 @@ class Agent:
                         flush=True
                     )
 
+                    print_performance_summary()
                     return (
                         f"I couldn't complete the request because "
                         f"{tool_name} failed: {error_message}. "
@@ -1009,6 +1116,7 @@ class Agent:
                     "content": json.dumps(llm_result, default=str)
                 })
 
+        print_performance_summary()
         return (
             "I could not complete the request within the allowed "
             "number of tool steps."
