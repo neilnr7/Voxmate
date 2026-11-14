@@ -1,3 +1,4 @@
+
 import os
 import shutil
 from datetime import datetime
@@ -5,7 +6,13 @@ from datetime import datetime
 
 
 
-def list_files(path):
+def list_files(path: str) -> dict:
+    """
+    List files and folders in a specified directory.
+
+    Args:
+        path: Directory path to list.
+    """
     try:
         if not isinstance(path, str) or not path.strip():
             return {
@@ -86,7 +93,14 @@ def list_files(path):
 
 
 
-def find_file(query, path):
+def find_file(query: str, path: str) -> dict:
+    """
+    Recursively search for files by full or partial filename.
+
+    Args:
+        query: Filename or part of a filename to search for.
+        path: Directory in which to search.
+    """
     try:
         if not isinstance(query, str) or not query.strip():
             return {
@@ -186,7 +200,13 @@ def find_file(query, path):
 
 
 
-def read_file(path):
+def read_file(path: str) -> dict:
+    """
+    Read the text contents of a file.
+
+    Args:
+        path: Path of the file to read.
+    """
     try:
         if not isinstance(path, str) or not path.strip():
             return {
@@ -261,7 +281,13 @@ def read_file(path):
         }
 
 
-def create_file(path):
+def create_file(path: str) -> dict:
+    """
+    Create a new empty file without overwriting an existing file.
+
+    Args:
+        path: Full path for the new file.
+    """
     try:
         if not isinstance(path, str) or not path.strip():
             return {
@@ -321,7 +347,14 @@ def create_file(path):
 
 
 
-def write_file(path, content):
+def write_file(path: str, content: str) -> dict:
+    """
+    Write text content to a file, creating it or overwriting its contents.
+
+    Args:
+        path: Path of the file to write.
+        content: Text content to write into the file.
+    """
     try:
         if not isinstance(path, str) or not path.strip():
             return {
@@ -390,8 +423,14 @@ def write_file(path, content):
 
 
 
+def rename_file(path: str, new_name: str) -> dict:
+    """
+    Rename an existing file within its current directory.
 
-def rename_file(path, new_name):
+    Args:
+        path: Path of the existing file.
+        new_name: New filename, without a directory path.
+    """
     try:
         if not isinstance(path, str) or not path.strip():
             return {
@@ -485,7 +524,14 @@ def rename_file(path, new_name):
 
 
 
-def copy_file(source, destination):
+def copy_file(source: str, destination: str) -> dict:
+    """
+    Copy a file to a destination path or existing destination directory.
+
+    Args:
+        source: Path of the source file.
+        destination: Destination file path or existing directory.
+    """
     try:
         if not isinstance(source, str) or not source.strip():
             return {
@@ -580,7 +626,14 @@ def copy_file(source, destination):
 
 
 
-def move_file(source, destination):
+def move_file(source: str, destination: str) -> dict:
+    """
+    Move a file or folder to a destination path or existing directory.
+
+    Args:
+        source: Path of the source file or folder.
+        destination: Destination path or existing directory.
+    """
     try:
         if not isinstance(source, str) or not source.strip():
             return {
@@ -690,7 +743,14 @@ def move_file(source, destination):
 
 
 
-def delete_file(path, recursive=False):
+def delete_file(path: str, recursive: bool = False) -> dict:
+    """
+    Delete a file or folder. Non-empty folders require recursive=True.
+
+    Args:
+        path: Path of the file or folder to delete.
+        recursive: Whether to delete a folder and all its contents.
+    """
     try:
         if not isinstance(path, str) or not path.strip():
             return {
@@ -777,8 +837,13 @@ def delete_file(path, recursive=False):
 
 
 
+def get_file_info(path: str) -> dict:
+    """
+    Retrieve a file or folder's name, type, extension, size, and timestamps.
 
-def get_file_info(path):
+    Args:
+        path: Path of the file or folder.
+    """
     try:
         if not isinstance(path, str) or not path.strip():
             return {
@@ -848,8 +913,14 @@ def get_file_info(path):
             "error": f"Unexpected error while retrieving file information: {e}"
         }
 
-def create_folder(path):
-    """Create a folder, including any missing parent directories."""
+
+def create_folder(path: str) -> dict:
+    """
+    Create a folder, including any missing parent directories.
+
+    Args:
+        path: Full path of the folder to create.
+    """
     try:
         path = os.path.abspath(path)
 
@@ -878,4 +949,4 @@ def create_folder(path):
         return {
             "success": False,
             "error": str(e)
-        }        
+        }

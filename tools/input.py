@@ -1,29 +1,63 @@
+
 import pyautogui
 
 
-def type_text(text):
+def type_text(text: str) -> str:
+    """
+    Type the provided text using the keyboard into the currently active application.
+
+    Args:
+        text: Text to type.
+    """
     pyautogui.write(text, interval=0.02)
     return "Text typed successfully."
 
 
-def press_key(key):
+def press_key(key: str) -> str:
+    """
+    Press a single keyboard key.
+
+    Args:
+        key: Key to press, such as enter, escape, tab, or f5.
+    """
     pyautogui.press(key)
     return f"Pressed {key}."
 
 
-def hotkey(keys):
+def hotkey(keys: list[str]) -> str:
+    """
+    Press multiple keyboard keys together.
+
+    Args:
+        keys: List of keys to press together, such as Ctrl and C.
+    """
     pyautogui.hotkey(*keys)
     return f"Pressed {'+'.join(keys)}."
 
 
-def click(x, y):
+def click(x: int, y: int) -> str:
+    """
+    Click the mouse at a specific screen coordinate.
+
+    Args:
+        x: Horizontal screen coordinate.
+        y: Vertical screen coordinate.
+    """
     pyautogui.click(x, y)
     return f"Clicked at ({x}, {y})."
 
 
-def scroll(amount):
+def scroll(amount: int) -> str:
+    """
+    Scroll the currently active application.
+
+    Args:
+        amount: Number of scroll units. Positive values scroll up;
+                negative values scroll down.
+    """
     pyautogui.scroll(amount)
     return f"Scrolled {amount}."
+
 
 TYPE_TEXT_TOOL = {
     "type": "function",

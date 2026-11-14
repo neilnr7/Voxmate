@@ -1,18 +1,32 @@
+
 import pyperclip
 
 
-def read_clipboard():
+def read_clipboard() -> str:
+    """
+    Read and return the current text stored in the Windows clipboard.
+    """
     return pyperclip.paste()
 
 
-def write_clipboard(text):
+def write_clipboard(text: str) -> str:
+    """
+    Copy the provided text to the Windows clipboard.
+
+    Args:
+        text: The text to copy to the clipboard.
+    """
     pyperclip.copy(text)
     return "Text copied to clipboard."
 
 
-def clear_clipboard():
+def clear_clipboard() -> str:
+    """
+    Clear the current contents of the Windows clipboard.
+    """
     pyperclip.copy("")
     return "Clipboard cleared."
+
 
 READ_CLIPBOARD_TOOL = {
     "type": "function",

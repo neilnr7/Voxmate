@@ -1,3 +1,4 @@
+
 from datetime import datetime
 import psutil
 import subprocess
@@ -5,15 +6,18 @@ import wmi
 from pycaw.pycaw import AudioUtilities
 
 
-def get_time():
+def get_time() -> str:
+    """Get the current local time."""
     return datetime.now().strftime("%I:%M:%S %p")
 
 
-def get_date():
+def get_date() -> str:
+    """Get today's date."""
     return datetime.now().strftime("%A, %B %d, %Y")
 
 
-def get_battery():
+def get_battery() -> str:
+    """Get the computer's current battery percentage and charging status."""
     battery = psutil.sensors_battery()
 
     if battery is None:
@@ -29,7 +33,13 @@ def get_battery():
     return f"{percentage:.0f}% ({status})"
 
 
-def set_volume(level):
+def set_volume(level: int) -> dict:
+    """
+    Set the Windows system volume to a specific percentage.
+
+    Args:
+        level: Desired system volume percentage, from 0 to 100.
+    """
     try:
         level = int(level)
 
@@ -69,7 +79,8 @@ def set_volume(level):
         }
 
 
-def mute_volume():
+def mute_volume() -> dict:
+    """Mute the Windows system audio volume."""
     try:
         devices = AudioUtilities.GetSpeakers()
         volume = devices.EndpointVolume
@@ -88,7 +99,8 @@ def mute_volume():
         }
 
 
-def unmute_volume():
+def unmute_volume() -> dict:
+    """Unmute the Windows system audio volume."""
     try:
         devices = AudioUtilities.GetSpeakers()
         volume = devices.EndpointVolume
@@ -107,7 +119,13 @@ def unmute_volume():
         }
 
 
-def increase_volume(amount=10):
+def increase_volume(amount: int = 10) -> dict:
+    """
+    Increase the Windows system volume.
+
+    Args:
+        amount: Percentage by which to increase the volume. Defaults to 10.
+    """
     try:
         amount = int(amount)
 
@@ -146,7 +164,13 @@ def increase_volume(amount=10):
         }
 
 
-def decrease_volume(amount=10):
+def decrease_volume(amount: int = 10) -> dict:
+    """
+    Decrease the Windows system volume.
+
+    Args:
+        amount: Percentage by which to decrease the volume. Defaults to 10.
+    """
     try:
         amount = int(amount)
 
@@ -183,7 +207,13 @@ def decrease_volume(amount=10):
 
 
 #brightness functions
-def set_brightness(level):
+def set_brightness(level: int) -> dict:
+    """
+    Set the Windows screen brightness to a specific percentage.
+
+    Args:
+        level: Desired screen brightness percentage, from 0 to 100.
+    """
     try:
         level = int(level)
 
@@ -222,7 +252,13 @@ def set_brightness(level):
         }
 
 
-def increase_brightness(amount=10):
+def increase_brightness(amount: int = 10) -> dict:
+    """
+    Increase the Windows screen brightness.
+
+    Args:
+        amount: Percentage by which to increase brightness. Defaults to 10.
+    """
     try:
         amount = int(amount)
 
@@ -265,7 +301,13 @@ def increase_brightness(amount=10):
         }
 
 
-def decrease_brightness(amount=10):
+def decrease_brightness(amount: int = 10) -> dict:
+    """
+    Decrease the Windows screen brightness.
+
+    Args:
+        amount: Percentage by which to decrease brightness. Defaults to 10.
+    """
     try:
         amount = int(amount)
 
@@ -306,6 +348,7 @@ def decrease_brightness(amount=10):
             "success": False,
             "error": f"Could not decrease brightness: {str(e)}"
         }
+
 
 GET_TIME_TOOL = {
     "type": "function",
