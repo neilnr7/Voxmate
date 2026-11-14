@@ -1,3 +1,4 @@
+
 import json
 import subprocess
 import win32gui
@@ -5,8 +6,17 @@ import win32con
 import time
 
 
+def open_app(application: str) -> dict:
+    """
+    Launch an installed Windows application or focus it if it is
+    already running.
 
-def open_app(application):
+    Do not use for opening websites or switching to an already
+    running application when the user explicitly requests switching.
+
+    Args:
+        application: Name of the application to launch.
+    """
     application = application.strip()
 
     if not application:
@@ -129,8 +139,13 @@ def open_app(application):
         }
 
 
+def close_app(application: str) -> dict:
+    """
+    Close an application that is currently running.
 
-def close_app(application):
+    Args:
+        application: Name of the running application to close.
+    """
     application = application.strip()
 
     if not application:
@@ -196,7 +211,14 @@ def close_app(application):
         }
 
 
-def focus_app(application):
+def focus_app(application: str) -> dict:
+    """
+    Bring an already running application's window to the foreground.
+    Restore it if minimized. Does not launch applications.
+
+    Args:
+        application: Name of the application to focus.
+    """
     application = application.strip()
 
     if not application:
@@ -277,9 +299,10 @@ def focus_app(application):
         }
 
 
-    
-
-def list_running_apps():
+def list_running_apps() -> dict:
+    """
+    Retrieve the titles of all currently visible application windows.
+    """
     running_apps = []
 
     def collect_window(hwnd, extra):
@@ -307,7 +330,6 @@ def list_running_apps():
             "success": False,
             "error": f"Could not list running applications: {str(e)}"
         }
-    
 
 
 OPEN_APP_TOOL = {
@@ -358,6 +380,7 @@ CLOSE_APP_TOOL = {
         }
     }
 }
+
 
 FOCUS_APP_TOOL = {
     "type": "function",

@@ -1,9 +1,18 @@
+
 import os
 from datetime import datetime
 import pyautogui
 
 
-def take_screenshot(filename=None):
+def take_screenshot(filename: str = None) -> str:
+    """
+    Capture the current screen and save the screenshot
+    in the user's Pictures/Screenshots folder.
+
+    Args:
+        filename: Optional name for the screenshot file.
+                  A timestamp-based filename is used if omitted.
+    """
     user_home = os.path.expanduser("~")
     one_drive = os.environ.get("OneDrive")
 
@@ -25,6 +34,8 @@ def take_screenshot(filename=None):
     if filename is None:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         filename = f"screenshot_{timestamp}.png"
+    elif not os.path.splitext(filename)[1]:
+        filename = f"{filename}.png"
 
     filepath = os.path.join(
         screenshots_folder,
@@ -35,6 +46,7 @@ def take_screenshot(filename=None):
     screenshot.save(filepath)
 
     return f"Screenshot saved as {filepath}."
+
 
 TAKE_SCREENSHOT_TOOL = {
     "type": "function",

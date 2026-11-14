@@ -1,8 +1,10 @@
 import os
 import json
+import re
 import time
 from llm.llama_client import LlamaClient
 from tools.registry import ToolRegistry
+from tools.router import SemanticToolRouter
 
 from tools.apps import (
     open_app,
@@ -536,7 +538,7 @@ class Agent:
             take_screenshot
         )
 
-        self.tools = [
+        """self.tools = [
             OPEN_APP_TOOL,
             CLOSE_APP_TOOL,
             FOCUS_APP_TOOL,
@@ -583,13 +585,22 @@ class Agent:
             DELETE_FILE_TOOL,
             GET_FILE_INFO_TOOL,
             CREATE_FOLDER_TOOL,
-        ]
+        ]"""
+
+        self.tools = self.registry.get_tool_schemas()
+        self.router = SemanticToolRouter(self.registry)
 
     def run(self, user_input):
         agent_start_time = time.perf_counter()
 
         llm_timings = []
         tool_timings = []
+
+        llm_token_totals = {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0
+        }
 
         def print_performance_summary():
             total_llm_time = sum(llm_timings)
@@ -610,6 +621,31 @@ class Agent:
 
             print(
                 f"  Total LLM time: {total_llm_time:.3f} sec",
+                flush=True
+            )
+
+            print(
+                f"  Total LLM calls: {len(llm_timings)}",
+                flush=True
+            )
+
+            print("\nLLM TOKEN USAGE:", flush=True)
+
+            print(
+                f"  Prompt tokens: "
+                f"{llm_token_totals['prompt_tokens']}",
+                flush=True
+            )
+
+            print(
+                f"  Completion tokens: "
+                f"{llm_token_totals['completion_tokens']}",
+                flush=True
+            )
+
+            print(
+                f"  Total tokens: "
+                f"{llm_token_totals['total_tokens']}",
                 flush=True
             )
 
@@ -702,6 +738,9 @@ class Agent:
                 "open_app automatically focuses the browser if it is already running or launches it if it is not running. "
                 "Wait for the open_app result before calling search_web. "
                 "After the browser has been focused or launched, perform the requested web search using search_web. "
+                "When the user explicitly names a browser for a web search, you MUST pass that browser in the browser argument of search_web. "
+                "For Edge, pass browser 'edge'; for Chrome, pass browser 'chrome'; for Firefox, pass browser 'firefox'; for Brave, pass browser 'brave'; for Opera, pass browser 'opera'. "
+                "If the user asks to search the web without naming a browser, call search_web without a browser argument so it uses the Windows default browser. "
                 "Do not call open_app and focus_app together for the same application. "
 
                 "If the user mentions a website, web page, or URL, use open_url rather than open_app. "
@@ -825,6 +864,40 @@ class Agent:
         ]
 
 
+        try:
+            selected_tools = self.router.select_tools(
+                user_input,
+                tools_per_part=2
+            )
+
+            selected_tool_names = {
+                tool["name"] for tool in selected_tools
+            }
+
+            available_tools = [
+                tool for tool in self.tools
+                if tool["function"]["name"] in selected_tool_names
+            ]
+
+            if not available_tools:
+                available_tools = self.tools
+
+            print(
+                "DYNAMIC TOOLS:",
+                [
+                    tool["function"]["name"]
+                    for tool in available_tools
+                ],
+                flush=True
+            )
+
+        except Exception as e:
+            print(
+                f"TOOL ROUTING ERROR: {e}. Using all tools.",
+                flush=True
+            )
+            available_tools = self.tools
+
         max_tool_steps = 5
 
         metadata_phrases = (
@@ -847,7 +920,19 @@ class Agent:
 
             response = self.llm.chat(
                 messages,
-                tools=self.tools
+                tools=available_tools
+            )
+
+            usage = self.llm.last_usage
+
+            llm_token_totals["prompt_tokens"] += usage.get(
+                "prompt_tokens", 0
+            )
+            llm_token_totals["completion_tokens"] += usage.get(
+                "completion_tokens", 0
+            )
+            llm_token_totals["total_tokens"] += usage.get(
+                "total_tokens", 0
             )
 
             llm_duration = time.perf_counter() - llm_start_time
@@ -881,11 +966,16 @@ class Agent:
                 })
                 continue
 
-            # Preserve the assistant message containing tool calls.
-            messages.append(response)
+            # Preserve only the next tool call in the conversation history.
+            # This keeps the tool-call message valid while allowing the LLM
+            # to inspect the result before choosing the next operation.
+            assistant_tool_response = response.copy()
+            assistant_tool_response["tool_calls"] = tool_calls[:1]
+            messages.append(assistant_tool_response)
 
-
-            for tool_call in tool_calls:
+            # Execute one tool at a time. Any remaining independent or
+            # dependent actions can be requested by the LLM on the next turn.
+            for tool_call in tool_calls[:1]:
                 tool_name = tool_call["function"]["name"]
                 raw_arguments = tool_call["function"].get(
                     "arguments", "{}"
@@ -917,6 +1007,34 @@ class Agent:
                     }
 
                 else:
+                    # If the user explicitly named a browser for this search,
+                    # enforce that choice instead of relying only on the LLM.
+                    # If no browser was named, search_web uses the default browser.
+                    if tool_name == "search_web":
+                        browser_match = re.search(
+                            r"\b(?:open|launch|start|use|using|in|on|with)\s+"
+                            r"(?:the\s+)?"
+                            r"(microsoft\s+edge|edge|google\s+chrome|"
+                            r"chrome|firefox|brave|opera)\b",
+                            user_input,
+                            re.IGNORECASE
+                        )
+
+                        if browser_match:
+                            requested_browser = browser_match.group(1).lower()
+
+                            if requested_browser in ("microsoft edge", "edge"):
+                                arguments["browser"] = "edge"
+                            elif requested_browser in ("google chrome", "chrome"):
+                                arguments["browser"] = "chrome"
+                            else:
+                                arguments["browser"] = requested_browser
+                        # If the utterance does not match the explicit
+                        # browser patterns above, preserve any browser value
+                        # already supplied by the LLM. Removing it here can
+                        # incorrectly force a named-browser request to use
+                        # the Windows default browser.
+
                     print(
                         f"\nEXECUTING TOOL: {tool_name}",
                         flush=True
