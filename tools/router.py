@@ -56,7 +56,7 @@ class SemanticToolRouter:
         action_words = (
             r"open|launch|start|run|search|look|find|locate|"
             r"create|make|delete|remove|copy|move|rename|"
-            r"read|write|save|close|switch|focus|increase|"
+            r"type|read|write|save|close|switch|focus|increase|"
             r"decrease|set|check|show|list|take|capture"
         )
 
