@@ -49,25 +49,29 @@ class SemanticToolRouter:
             normalize_embeddings=True
         )
 
+    
     def split_request(self, user_input):
-        """Split compound requests without breaking filenames."""
+        """Split compound requests while preserving filenames and phrases."""
+
+        action_words = (
+            r"open|launch|start|run|search|look|find|locate|"
+            r"create|make|delete|remove|copy|move|rename|"
+            r"read|write|save|close|switch|focus|increase|"
+            r"decrease|set|check|show|list|take|capture"
+        )
 
         parts = re.split(
-            r"\b(?:and then|then|and)\b|[,;]",
+            rf"\s*(?:;|\band\s+then\b|\bthen\b)\s*"
+            rf"|\s+and\s+(?=(?:{action_words})\b)"
+            rf"|,\s*(?=(?:{action_words})\b)",
             user_input,
             flags=re.IGNORECASE
         )
 
-        parts = [
-            part.strip()
-            for part in parts
-            if part.strip()
-        ]
+        parts = [part.strip() for part in parts if part.strip()]
 
-        if not parts:
-            return [user_input]
+        return parts if parts else [user_input]
 
-        return parts
 
     def get_rule_based_tool(self, user_input):
         """Identify clear tool intents before using semantic ranking."""
@@ -108,13 +112,22 @@ class SemanticToolRouter:
         ):
             return "go_back"
 
+        
+        # File search must be checked before general web search.
+        if re.search(
+            r"\b(find|locate|search\s+for)\b.*"
+            r"\b(file|document)\b",
+            text
+        ):
+            return "find_file"
+
         # Web searching
         if re.search(
-            r"\b(search\s+(?:the\s+)?(?:web|internet)|"
-            r"search\s+for|look\s+up)\b",
+            r"\b(search\s+(?:the\s+)?(?:web|internet)|look\s+up)\b",
             text
         ):
             return "search_web"
+
 
         # Website navigation
         website_names = (
@@ -224,15 +237,17 @@ class SemanticToolRouter:
             return "unmute_volume"
 
         if re.search(
-            r"\b(increase|raise|turn\s+up|make\s+(?:the\s+)?"
-            r"volume\s+louder)\b",
+            r"\b(increase|raise)\s+(?:the\s+)?volume\b|"
+            r"\bturn\s+up\s+(?:the\s+)?volume\b|"
+            r"\bmake\s+(?:the\s+)?volume\s+louder\b",
             text
         ):
             return "increase_volume"
 
         if re.search(
-            r"\b(decrease|lower|turn\s+down|make\s+(?:the\s+)?"
-            r"volume\s+quieter)\b",
+            r"\b(decrease|lower)\s+(?:the\s+)?volume\b|"
+            r"\bturn\s+down\s+(?:the\s+)?volume\b|"
+            r"\bmake\s+(?:the\s+)?volume\s+quieter\b",
             text
         ):
             return "decrease_volume"
@@ -445,7 +460,7 @@ class SemanticToolRouter:
                 matching_tools = [
                     tool for tool in ranked_tools
                     if tool["score"] >= min_similarity
-                ][:1]
+                ][:max(1, tools_per_part)]
 
                 if not matching_tools and ranked_tools:
                     matching_tools = ranked_tools[:1]
