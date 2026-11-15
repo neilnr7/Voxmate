@@ -49,25 +49,29 @@ class SemanticToolRouter:
             normalize_embeddings=True
         )
 
+
     def split_request(self, user_input):
-        """Split compound requests without breaking filenames."""
+        """Split compound requests while preserving filenames and phrases."""
+
+        action_words = (
+            r"open|launch|start|run|search|look|find|locate|"
+            r"create|make|delete|remove|copy|move|rename|"
+            r"type|read|write|save|close|switch|focus|increase|"
+            r"decrease|set|check|show|list|take|capture"
+        )
 
         parts = re.split(
-            r"\b(?:and then|then|and)\b|[,;]",
+            rf"\s*(?:;|\band\s+then\b|\bthen\b)\s*"
+            rf"|\s+and\s+(?=(?:{action_words})\b)"
+            rf"|,\s*(?=(?:{action_words})\b)",
             user_input,
             flags=re.IGNORECASE
         )
 
-        parts = [
-            part.strip()
-            for part in parts
-            if part.strip()
-        ]
+        parts = [part.strip() for part in parts if part.strip()]
 
-        if not parts:
-            return [user_input]
+        return parts if parts else [user_input]
 
-        return parts
 
     def get_rule_based_tool(self, user_input):
         """Identify clear tool intents before using semantic ranking."""
@@ -108,13 +112,22 @@ class SemanticToolRouter:
         ):
             return "go_back"
 
+
+        # File search must be checked before general web search.
+        if re.search(
+            r"\b(find|locate|search\s+for)\b.*"
+            r"\b(file|document)\b",
+            text
+        ):
+            return "find_file"
+
         # Web searching
         if re.search(
-            r"\b(search\s+(?:the\s+)?(?:web|internet)|"
-            r"search\s+for|look\s+up)\b",
+            r"\b(search\s+(?:the\s+)?(?:web|internet)|look\s+up)\b",
             text
         ):
             return "search_web"
+
 
         # Website navigation
         website_names = (
@@ -175,6 +188,13 @@ class SemanticToolRouter:
         if re.search(browser_pattern, text):
             return "open_app"
 
+        # Generic text editor launching
+        if re.search(
+            r"\b(bring\s+up|open|launch|start|run)\b.*"
+            r"\b(plain\s+text\s+editor|text\s+editor)\b",
+            text
+        ):
+            return "open_app"
         # General application launching. Website names and URLs have
         # already been handled above.
         if re.search(
@@ -224,15 +244,17 @@ class SemanticToolRouter:
             return "unmute_volume"
 
         if re.search(
-            r"\b(increase|raise|turn\s+up|make\s+(?:the\s+)?"
-            r"volume\s+louder)\b",
+            r"\b(increase|raise)\s+(?:the\s+)?volume\b|"
+            r"\bturn\s+up\s+(?:the\s+)?volume\b|"
+            r"\bmake\s+(?:the\s+)?volume\s+louder\b",
             text
         ):
             return "increase_volume"
 
         if re.search(
-            r"\b(decrease|lower|turn\s+down|make\s+(?:the\s+)?"
-            r"volume\s+quieter)\b",
+            r"\b(decrease|lower)\s+(?:the\s+)?volume\b|"
+            r"\bturn\s+down\s+(?:the\s+)?volume\b|"
+            r"\bmake\s+(?:the\s+)?volume\s+quieter\b",
             text
         ):
             return "decrease_volume"
@@ -315,6 +337,14 @@ class SemanticToolRouter:
             return "clear_clipboard"
 
         # File and folder operations
+        # Reading document contents
+        if re.search(
+            r"\b(read|retrieve|get|show|display)\b.*"
+            r"\b(contents?|text)\b.*"
+            r"\b(document|file)\b",
+            text
+        ):
+            return "read_file"
         if re.search(
             r"\b(create|make|new)\s+(?:a\s+)?folder\b",
             text
@@ -375,43 +405,60 @@ class SemanticToolRouter:
 
         return None
 
-    def rank_tools(self, user_input):
-        """Rank tools using their names and core descriptions."""
 
-        query_embedding = self.model.encode(
-            user_input,
+    def _rank_tools_batch(self, user_inputs):
+        """Rank multiple requests using a single embedding call."""
+
+        if not user_inputs:
+            return []
+
+        query_embeddings = self.model.encode(
+            user_inputs,
             convert_to_tensor=True,
             normalize_embeddings=True
         )
 
         name_scores = util.cos_sim(
-            query_embedding,
+            query_embeddings,
             self.tool_name_embeddings
-        )[0]
+        )
 
         description_scores = util.cos_sim(
-            query_embedding,
+            query_embeddings,
             self.tool_description_embeddings
-        )[0]
+        )
 
         combined_scores = (
             0.80 * name_scores
             + 0.20 * description_scores
         )
 
-        ranked_indices = combined_scores.argsort(
-            descending=True
-        ).tolist()
+        batch_results = []
 
-        ranked_tools = []
+        for row in combined_scores:
+            ranked_indices = row.argsort(
+                descending=True
+            ).tolist()
 
-        for index in ranked_indices:
-            ranked_tools.append({
-                "name": self.tool_names[index],
-                "score": float(combined_scores[index])
-            })
+            ranked_tools = [
+                {
+                    "name": self.tool_names[index],
+                    "score": float(row[index])
+                }
+                for index in ranked_indices
+            ]
 
-        return ranked_tools
+            batch_results.append(ranked_tools)
+
+        return batch_results
+
+
+    def rank_tools(self, user_input):
+        """Rank tools using their names and core descriptions."""
+
+        return self._rank_tools_batch([user_input])[0]
+
+
 
     def select_tools(
         self,
@@ -420,45 +467,54 @@ class SemanticToolRouter:
         min_similarity=0.25,
         tools_per_part=1
     ):
-        """Select relevant tools using rules first, then semantic ranking."""
+        """Select tools using rule-based routing and batch semantic ranking."""
 
         request_parts = self.split_request(user_input)
 
         tool_scores = {}
+        semantic_parts = []
 
+
+        # First resolve all rule-based matches.
         for part in request_parts:
-            # Use deterministic rules first. This avoids embedding
-            # near-matches such as get_time for a get_date request.
+
             rule_based_tool = self.get_rule_based_tool(part)
 
             if (
                 rule_based_tool
                 and rule_based_tool in self.tool_names
             ):
-                matching_tools = [{
-                    "name": rule_based_tool,
-                    "score": 1.0
-                }]
+                tool_scores[rule_based_tool] = max(
+                    tool_scores.get(rule_based_tool, 0.0),
+                    1.0
+                )
+
             else:
-                ranked_tools = self.rank_tools(part)
+                semantic_parts.append(part)
+
+
+        # Encode all semantic requests together.
+        if semantic_parts:
+            batch_rankings = self._rank_tools_batch(
+                semantic_parts
+            )
+
+            for ranked_tools in batch_rankings:
 
                 matching_tools = [
                     tool for tool in ranked_tools
                     if tool["score"] >= min_similarity
-                ][:1]
+                ][:max(1, tools_per_part)]
 
                 if not matching_tools and ranked_tools:
                     matching_tools = ranked_tools[:1]
 
-            for tool in matching_tools:
-                name = tool["name"]
-                score = tool["score"]
+                for tool in matching_tools:
+                    name = tool["name"]
+                    score = tool["score"]
 
-                if name not in tool_scores:
-                    tool_scores[name] = score
-                else:
                     tool_scores[name] = max(
-                        tool_scores[name],
+                        tool_scores.get(name, 0.0),
                         score
                     )
 

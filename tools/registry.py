@@ -1,6 +1,6 @@
 
 import inspect
-import json
+import copy
 import types
 from typing import get_type_hints, get_origin, get_args, Union
 
@@ -9,6 +9,9 @@ class ToolRegistry:
     def __init__(self):
         self.tools = {}
         self.metadata = {}
+
+        # Cache generated schemas to avoid rebuilding them repeatedly.
+        self._schema_cache = {}
 
     def register(
         self,
@@ -37,15 +40,60 @@ class ToolRegistry:
             "parameter_descriptions": parameter_descriptions or {}
         }
 
+        # Invalidate cached schema if this tool is registered again.
+        self._schema_cache.pop(name, None)
+
     def execute(self, name, arguments):
+        """Execute a registered tool with validated arguments."""
+
         if name not in self.tools:
             return {
                 "success": False,
                 "error": f"Unknown tool: {name}"
             }
 
+        if not isinstance(arguments, dict):
+            return {
+                "success": False,
+                "error": "Tool arguments must be a dictionary."
+            }
+
+        function = self.tools[name]
+
+        # Validate arguments before executing the function.
         try:
-            result = self.tools[name](**arguments)
+            signature = inspect.signature(function)
+            signature.bind(**arguments)
+
+        except TypeError as e:
+            return {
+                "success": False,
+                "error": f"Invalid arguments for tool '{name}': {e}"
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Argument validation failed: {e}"
+            }
+
+        try:
+            result = function(**arguments)
+
+            # Preserve a tool's own success/failure status.
+            if isinstance(result, dict) and "success" in result:
+                response = {
+                    "success": bool(result["success"]),
+                    "result": result
+                }
+
+                if not result["success"]:
+                    response["error"] = result.get(
+                        "error",
+                        f"Tool '{name}' reported failure."
+                    )
+
+                return response
 
             return {
                 "success": True,
@@ -59,7 +107,8 @@ class ToolRegistry:
             }
 
     def get_tools(self):
-        return self.tools
+        """Return registered tools without exposing the internal dictionary."""
+        return self.tools.copy()
 
     def _get_json_type(self, annotation):
         """Convert Python type hints into JSON Schema types."""
@@ -81,6 +130,7 @@ class ToolRegistry:
 
         if origin is list:
             item_type = args[0] if args else str
+
             return {
                 "type": "array",
                 "items": self._get_json_type(item_type)
@@ -103,10 +153,14 @@ class ToolRegistry:
         )
 
     def get_tool_schema(self, name):
-        """Generate one OpenAI-compatible tool schema."""
+        """Generate and cache one OpenAI-compatible tool schema."""
 
         if name not in self.tools:
             raise ValueError(f"Unknown tool: {name}")
+
+        # Return cached schema when available.
+        if name in self._schema_cache:
+            return copy.deepcopy(self._schema_cache[name])
 
         function = self.tools[name]
         metadata = self.metadata[name]
@@ -145,7 +199,7 @@ class ToolRegistry:
             if param.default is inspect.Parameter.empty:
                 required.append(param_name)
 
-        return {
+        schema = {
             "type": "function",
             "function": {
                 "name": name,
@@ -158,8 +212,13 @@ class ToolRegistry:
             }
         }
 
+        # Store the generated schema.
+        self._schema_cache[name] = schema
+
+        return copy.deepcopy(schema)
+
     def get_tool_schemas(self):
-        """Generate schemas for all registered tools."""
+        """Return schemas for all registered tools."""
 
         return [
             self.get_tool_schema(name)
